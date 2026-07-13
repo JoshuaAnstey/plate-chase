@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>Plate Chase</title>
+<style>
+  :root{
+    --primary:#FF385C; --primary-dark:#E31C5F;
+    --text:#222222; --text-2:#717171; --border:#EBEBEB;
+    --bg:#FFFFFF; --surface:#F7F7F7; --green:#008A05;
+    --radius:16px; --shadow:0 6px 16px rgba(0,0,0,.12);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;overscroll-behavior-y:contain}
+  #app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+  button{font:inherit;border:none;background:none;cursor:pointer;color:inherit}
+  input{font:inherit}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+    padding:14px 20px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+  .topbar h1{font-size:20px;font-weight:800;letter-spacing:-.3px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand{color:var(--primary);display:flex;align-items:center;gap:8px;font-size:22px;font-weight:800;flex:1}
+  .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--border);background:#fff;font-size:16px;flex-shrink:0;transition:transform .12s}
+  .icon-btn:active{transform:scale(.92)}
+  .net{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0}
+  .net.off{background:#F5A623}
+  .page{padding:20px;flex:1;padding-bottom:calc(40px + var(--safe-b))}
+  .hero{margin:6px 0 22px}
+  .hero h2{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
+  .hero p{color:var(--text-2);margin-top:6px;font-size:15px}
+  .game-card{border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:transform .12s;cursor:pointer;position:relative}
+  .game-card:active{transform:scale(.98)}
+  .game-card h3{font-size:17px;font-weight:700;padding-right:36px}
+  .game-card .meta{color:var(--text-2);font-size:13px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
+  .game-card .edit{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:14px}
+  .game-card .edit:active{background:var(--surface)}
+  .pbar{height:8px;background:var(--surface);border-radius:99px;margin-top:14px;overflow:hidden}
+  .pbar>div{height:100%;background:linear-gradient(90deg,var(--primary),#FF7A8E);border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .pnum{margin-top:8px;font-size:13px;font-weight:600}
+  .pnum span{color:var(--text-2);font-weight:400}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;
+    border-radius:12px;font-weight:700;font-size:16px;transition:transform .12s,opacity .2s}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:linear-gradient(90deg,#E61E4D,#E31C5F,#D70466);color:#fff}
+  .btn-ghost{border:1.5px solid var(--text);color:var(--text);background:#fff}
+  .btn-danger{color:#C13515;background:none;font-size:14px;font-weight:600;width:auto;margin:14px auto 0;display:block}
+  .btn[disabled]{opacity:.45;pointer-events:none}
+  .empty{text-align:center;padding:44px 20px;color:var(--text-2)}
+  .empty .big{font-size:54px;margin-bottom:14px}
+  .game-head{padding:16px 20px 6px}
+  .game-head .counts{display:flex;align-items:baseline;gap:8px}
+  .game-head .counts b{font-size:30px;font-weight:800;letter-spacing:-.5px}
+  .game-head .counts span{color:var(--text-2);font-size:15px}
+  .search{display:flex;align-items:center;gap:10px;margin:14px 20px 4px;padding:11px 16px;border:1px solid var(--border);
+    border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.06);background:#fff}
+  .search input{border:none;outline:none;flex:1;font-size:15px;background:none}
+  .chips{display:flex;gap:8px;padding:12px 20px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:8px 15px;border-radius:99px;border:1px solid var(--border);font-size:13.5px;font-weight:600;
+    white-space:nowrap;background:#fff;color:var(--text);transition:all .15s}
+  .chip.on{background:var(--text);color:#fff;border-color:var(--text)}
+  .state-list{padding:4px 20px}
+  .state-card{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--surface);cursor:pointer}
+  .state-card:active{opacity:.7}
+  .plate{width:104px;height:54px;border-radius:8px;flex-shrink:0;overflow:hidden;position:relative;
+    box-shadow:0 1px 4px rgba(0,0,0,.18);background:var(--surface)}
+  .plate img{width:100%;height:100%;object-fit:cover;display:block}
+  .plate-fb{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border:2px solid rgba(255,255,255,.55);border-radius:8px;padding:2px 4px}
+  .plate-fb .st{font-size:8px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;line-height:1}
+  .plate-fb .num{font-family:"Courier New",monospace;font-size:17px;font-weight:800;letter-spacing:1px;line-height:1.15}
+  .plate-fb .slg{font-size:6.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;line-height:1;opacity:.9;text-align:center}
+  .state-card .info{flex:1;min-width:0}
+  .state-card .name{font-weight:700;font-size:15.5px}
+  .state-card .sub{color:var(--text-2);font-size:12.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    border:2px solid var(--border);color:transparent;font-size:14px;transition:all .2s}
+  .found .badge{background:var(--green);border-color:var(--green);color:#fff}
+  .found .plate{outline:2.5px solid var(--green);outline-offset:1.5px}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;opacity:0;transition:opacity .25s;pointer-events:none}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-radius:22px 22px 0 0;
+    max-width:560px;margin:0 auto;max-height:92vh;overflow-y:auto;transform:translateY(105%);
+    transition:transform .32s cubic-bezier(.2,.8,.2,1);padding:10px 22px calc(26px + var(--safe-b))}
+  .sheet.show{transform:translateY(0)}
+  .grip{width:38px;height:4px;border-radius:99px;background:#DDD;margin:6px auto 16px}
+  .sheet .bigplate{width:min(320px,80%);aspect-ratio:2/1;margin:6px auto 16px;border-radius:12px;overflow:hidden;
+    box-shadow:var(--shadow);background:var(--surface);position:relative}
+  .sheet .bigplate img{width:100%;height:100%;object-fit:cover;display:block}
+  .sheet .bigplate .plate-fb{border-width:3px;border-radius:12px}
+  .sheet .bigplate .plate-fb .st{font-size:15px}
+  .sheet .bigplate .plate-fb .num{font-size:44px;letter-spacing:3px}
+  .sheet .bigplate .plate-fb .slg{font-size:12px}
+  .sheet h2{text-align:center;font-size:22px;font-weight:800;letter-spacing:-.3px}
+  .sheet .nick{text-align:center;color:var(--text-2);font-size:14px;margin:3px 0 18px}
+  .sec-label{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);margin:18px 0 10px}
+  .player-row{display:flex;flex-wrap:wrap;gap:8px}
+  .pchip{padding:9px 16px;border-radius:99px;border:1.5px solid var(--border);font-size:14px;font-weight:600;background:#fff;transition:all .15s}
+  .pchip.on{border-color:var(--text);background:var(--text);color:#fff}
+  .found-box{background:#F0F9F0;border:1px solid #CBE8CC;border-radius:14px;padding:16px;margin-top:6px}
+  .found-box .row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;font-size:14.5px}
+  .found-box .row:last-child{margin-bottom:0}
+  .found-box .ic{width:20px;text-align:center;flex-shrink:0}
+  .found-box a{color:var(--text);font-weight:600}
+  .photo-wrap{margin-top:14px}
+  .photo-wrap img{width:100%;border-radius:14px;display:block}
+  .photo-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;margin-top:12px;
+    border:1.5px dashed #C9C9C9;border-radius:12px;color:var(--text-2);font-weight:600;font-size:14.5px}
+  .gps-note{text-align:center;color:var(--text-2);font-size:12.5px;margin-top:10px}
+  .modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-end;justify-content:center}
+  .modal.show{display:flex}
+  .modal .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+  .modal .box{position:relative;background:#fff;width:100%;max-width:560px;border-radius:22px 22px 0 0;
+    padding:12px 22px calc(28px + var(--safe-b));max-height:92vh;overflow-y:auto}
+  .modal h2{font-size:19px;font-weight:800;text-align:center;margin-bottom:18px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
+  .field input{width:100%;padding:13px 14px;border:1px solid #C9C9C9;border-radius:10px;font-size:15.5px;outline:none;background:#fff}
+  .field input:focus{border-color:var(--text)}
+  .player-editor{display:flex;flex-wrap:wrap;gap:8px}
+  .player-editor .pchip .x{margin-left:7px;opacity:.6}
+  .add-player{display:flex;gap:8px;margin-top:10px}
+  .add-player input{flex:1;padding:11px 14px;border:1px solid #C9C9C9;border-radius:10px;font-size:14.5px;outline:none}
+  .add-player button{padding:0 18px;border-radius:10px;background:var(--surface);font-weight:700}
+  .toast{position:fixed;bottom:calc(30px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--text);color:#fff;padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;
+    z-index:99;transition:transform .3s;white-space:nowrap;box-shadow:var(--shadow)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .confetti-piece{position:fixed;width:10px;height:10px;z-index:98;pointer-events:none;top:-12px}
+  @keyframes cfall{to{transform:translateY(110vh) rotate(720deg)}}
+  .winbox{position:fixed;inset:0;z-index:97;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    background:rgba(255,255,255,.94);backdrop-filter:blur(8px);text-align:center;padding:30px}
+  .winbox .t{font-size:64px}
+  .winbox h2{font-size:28px;font-weight:800;margin:12px 0 8px}
+  .winbox p{color:var(--text-2);margin-bottom:26px}
+  .auth-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 28px calc(60px + var(--safe-b))}
+  .auth-wrap .logo{text-align:center;font-size:52px;margin-bottom:10px}
+  .auth-wrap h2{font-size:28px;font-weight:800;text-align:center;letter-spacing:-.5px}
+  .auth-wrap .sub{text-align:center;color:var(--text-2);margin:8px 0 30px;font-size:15px;line-height:1.5}
+  .divider{display:flex;align-items:center;gap:12px;color:var(--text-2);font-size:12.5px;margin:22px 0;text-transform:uppercase;letter-spacing:.5px}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
+  .code-row{display:flex;gap:8px}
+  .code-row input{flex:1;padding:13px 14px;border:1px solid #C9C9C9;border-radius:10px;font-size:16px;outline:none;
+    text-transform:uppercase;letter-spacing:3px;font-weight:700;text-align:center}
+  .code-row button{padding:0 20px;border-radius:10px;background:var(--text);color:#fff;font-weight:700}
+  .joincode{display:flex;justify-content:center;gap:6px;margin:6px 0 2px}
+  .joincode span{font-family:"Courier New",monospace;font-size:26px;font-weight:800;background:var(--surface);
+    border:1px solid var(--border);border-radius:8px;padding:6px 9px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet"></div>
+<div class="modal" id="modal"></div>
+<div class="toast" id="toast"></div>
+<input type="file" accept="image/*" id="photoInput" hidden>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ============================================================
+   CONFIG — paste your Supabase project values here.
+   Dashboard → Settings → API
+   ============================================================ */
+const CONFIG = {
+  SUPABASE_URL: "https://qwuqqugjdziinzkbhekm.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_-BKgAG7WAyJQd4F09Phk9g__KaDeZ9L"
+};
+
+/* ================= STATE DATA (same as v1) ================= */
+const IMG = f => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(f)}?width=480`;
+const STATES = [
+ {id:"AL",name:"Alabama",nick:"Yellowhammer State",slg:"Sweet Home Alabama",c:["#F9D976","#F39F86"],fg:"#5B2A00",img:null},
+ {id:"AK",name:"Alaska",nick:"The Last Frontier",slg:"The Last Frontier",c:["#FFD34E","#2B4C8C"],fg:"#1B2E5A",img:"2007_Alaska_License_Plate.jpg"},
+ {id:"AZ",name:"Arizona",nick:"Grand Canyon State",slg:"Grand Canyon State",c:["#5C4E8E","#C96A4A"],fg:"#FFF3E0",img:null},
+ {id:"AR",name:"Arkansas",nick:"The Natural State",slg:"The Natural State",c:["#E8E8E8","#CFCFCF"],fg:"#8A0F1F",img:"Arkansas_2011_license_plate.jpg"},
+ {id:"CA",name:"California",nick:"The Golden State",slg:"California",c:["#FFFFFF","#F2F2F2"],fg:"#123B7A",img:"California_license_plate,_August_2012.png"},
+ {id:"CO",name:"Colorado",nick:"Centennial State",slg:"Colorful Colorado",c:["#2E6B4F","#FFFFFF"],fg:"#0E3D28",img:"Colorado_2018_License_Plate.jpg"},
+ {id:"CT",name:"Connecticut",nick:"Constitution State",slg:"Constitution State",c:["#BFD9F2","#7FA8D9"],fg:"#123B7A",img:"2015_to_Present_Connecticut_license_plate.jpg"},
+ {id:"DE",name:"Delaware",nick:"The First State",slg:"The First State",c:["#12294A","#0B1E38"],fg:"#F2C94C",img:"2001_Delaware_license_plate_532484.jpg"},
+ {id:"FL",name:"Florida",nick:"Sunshine State",slg:"Sunshine State",c:["#FFFFFF","#F4F4F4"],fg:"#1D6B3C",img:"Florida_License_Plate_2026-present.jpg"},
+ {id:"GA",name:"Georgia",nick:"Peach State",slg:"Peach State",c:["#FDEBD0","#F6C28B"],fg:"#5B2A00",img:"Georgia_RXK8223.jpg"},
+ {id:"HI",name:"Hawaii",nick:"Aloha State",slg:"Aloha State",c:["#FFFFFF","#FDECEF"],fg:"#B02A37",img:"Hawaiian_sample_license_plate,_2025.png"},
+ {id:"ID",name:"Idaho",nick:"Gem State",slg:"Scenic Idaho · Famous Potatoes",c:["#B02A37","#123B7A"],fg:"#FFFFFF",img:null},
+ {id:"IL",name:"Illinois",nick:"Prairie State",slg:"Land of Lincoln",c:["#FFFFFF","#D6E4F7"],fg:"#B02A37",img:null},
+ {id:"IN",name:"Indiana",nick:"Hoosier State",slg:"Crossroads of America",c:["#123B7A","#1D5FA8"],fg:"#FFFFFF",img:null},
+ {id:"IA",name:"Iowa",nick:"Hawkeye State",slg:"Hawkeye State",c:["#1D5FA8","#FFFFFF"],fg:"#0E2E5A",img:"Iowa_license_plate.jpg"},
+ {id:"KS",name:"Kansas",nick:"Sunflower State",slg:"Sunflower State",c:["#F2C94C","#1D5FA8"],fg:"#0E2E5A",img:"Kansas_License_Plate_Standard_Flat_September_2019.jpg"},
+ {id:"KY",name:"Kentucky",nick:"Bluegrass State",slg:"Unbridled Spirit",c:["#FFFFFF","#CFE3F5"],fg:"#123B7A",img:null},
+ {id:"LA",name:"Louisiana",nick:"Pelican State",slg:"Sportsman's Paradise",c:["#FFFFFF","#F2F2F2"],fg:"#1D5FA8",img:"Louisiana_America_250_license_plate.jpg"},
+ {id:"ME",name:"Maine",nick:"Pine Tree State",slg:"Vacationland",c:["#FFFFFF","#E3F0E3"],fg:"#1D6B3C",img:null},
+ {id:"MD",name:"Maryland",nick:"Old Line State",slg:"Maryland Proud",c:["#FFFFFF","#F4E9E9"],fg:"#B02A37",img:"Maryland_2016_License_Plate.jpg"},
+ {id:"MA",name:"Massachusetts",nick:"Bay State",slg:"The Spirit of America",c:["#FFFFFF","#F2F2F2"],fg:"#B02A37",img:"MA-Base-Plate.jpg"},
+ {id:"MI",name:"Michigan",nick:"Great Lakes State",slg:"Pure Michigan",c:["#123B7A","#1D5FA8"],fg:"#FFFFFF",img:"2017_Michigan_state_license_plate,_DNJ-0955.jpg"},
+ {id:"MN",name:"Minnesota",nick:"North Star State",slg:"10,000 Lakes",c:["#CFE9F5","#8FCBE8"],fg:"#0E2E5A",img:"Minnesota_2014_License_Plate.jpg"},
+ {id:"MS",name:"Mississippi",nick:"Magnolia State",slg:"Magnolia State",c:["#EAF4FB","#BBD9EE"],fg:"#123B7A",img:"Mississippi_2024_license_plate.jpg"},
+ {id:"MO",name:"Missouri",nick:"Show-Me State",slg:"Show-Me State",c:["#FFFFFF","#D6E4F7"],fg:"#123B7A",img:"Missouri_Passenger_Car_License_Plate_2020.png"},
+ {id:"MT",name:"Montana",nick:"Big Sky Country",slg:"Big Sky Country",c:["#2C5F8A","#7FB2D9"],fg:"#FFFFFF",img:"Montana_2010-present_standard_plate_(new_font).jpg"},
+ {id:"NE",name:"Nebraska",nick:"Cornhusker State",slg:"The Good Life",c:["#F2E3C1","#D9B97F"],fg:"#5B3A00",img:null},
+ {id:"NV",name:"Nevada",nick:"Silver State",slg:"The Silver State",c:["#2C3E70","#A0522D"],fg:"#FFFFFF",img:"NV-plate.jpg"},
+ {id:"NH",name:"New Hampshire",nick:"Granite State",slg:"Live Free or Die",c:["#FFFFFF","#E8F0E8"],fg:"#1D6B3C",img:"New_Hampshire_license_plate.jpg"},
+ {id:"NJ",name:"New Jersey",nick:"Garden State",slg:"Garden State",c:["#FDF6D8","#F5E9A8"],fg:"#0E2E5A",img:"New_Jersey_license_plate_2014.jpg"},
+ {id:"NM",name:"New Mexico",nick:"Land of Enchantment",slg:"Land of Enchantment",c:["#F2C94C","#E8B33C"],fg:"#B02A37",img:"1990_New_Mexico_license_plate_466*KGC_passenger_stamped_on_trailer_base.jpg"},
+ {id:"NY",name:"New York",nick:"Empire State",slg:"Excelsior",c:["#FFFFFF","#EDEDED"],fg:"#12294A",img:null},
+ {id:"NC",name:"North Carolina",nick:"Tar Heel State",slg:"First in Flight",c:["#FFFFFF","#D6E4F7"],fg:"#B02A37",img:"2013_North_Carolina_license_plate_-_BAC-5359.jpg"},
+ {id:"ND",name:"North Dakota",nick:"Peace Garden State",slg:"Peace Garden State",c:["#F9E4B7","#BFD9F2"],fg:"#5B3A00",img:"North_Dakota_license_plate.jpg"},
+ {id:"OH",name:"Ohio",nick:"Buckeye State",slg:"Birthplace of Aviation",c:["#FDEBD0","#F6C28B"],fg:"#B02A37",img:"2021_Ohio_License_Plate.png"},
+ {id:"OK",name:"Oklahoma",nick:"Sooner State",slg:"Imagine That",c:["#CFE9F5","#8FCBE8"],fg:"#0E2E5A",img:"Imagine_That.png"},
+ {id:"OR",name:"Oregon",nick:"Beaver State",slg:"Oregon",c:["#F2E9C9","#D9E8D9"],fg:"#1D6B3C",img:"Plate_tree_lg.jpg"},
+ {id:"PA",name:"Pennsylvania",nick:"Keystone State",slg:"Keystone State",c:["#123B7A","#F2C94C"],fg:"#FFFFFF",img:"2017_Pennsylvanian_license_plate.png"},
+ {id:"RI",name:"Rhode Island",nick:"Ocean State",slg:"Ocean State",c:["#EAF4FB","#BBD9EE"],fg:"#123B7A",img:"Thumbnail-rhode-island-license-plate-design-5.webp"},
+ {id:"SC",name:"South Carolina",nick:"Palmetto State",slg:"While I Breathe, I Hope",c:["#FFFFFF","#D6E4F7"],fg:"#123B7A",img:null},
+ {id:"SD",name:"South Dakota",nick:"Mount Rushmore State",slg:"Great Faces. Great Places.",c:["#8FCBE8","#2E6B4F"],fg:"#0E2E5A",img:null},
+ {id:"TN",name:"Tennessee",nick:"Volunteer State",slg:"Tennessee",c:["#12294A","#1D5FA8"],fg:"#FFFFFF",img:"2023_Tennessee_license_plate.jpg"},
+ {id:"TX",name:"Texas",nick:"Lone Star State",slg:"The Lone Star State",c:["#FFFFFF","#F2F2F2"],fg:"#12294A",img:"Texas_Passenger_Car_License_Plate_2020.png"},
+ {id:"UT",name:"Utah",nick:"Beehive State",slg:"Life Elevated",c:["#E8734A","#C94E2E"],fg:"#FFF3E0",img:null},
+ {id:"VT",name:"Vermont",nick:"Green Mountain State",slg:"Green Mountain State",c:["#1D6B3C","#155230"],fg:"#FFFFFF",img:"Vermont_2000_license_plate_CGX_308.jpg"},
+ {id:"VA",name:"Virginia",nick:"Old Dominion",slg:"Virginia",c:["#FFFFFF","#F2F2F2"],fg:"#12294A",img:"Virginia_2016_License_Plate.jpg"},
+ {id:"WA",name:"Washington",nick:"Evergreen State",slg:"Evergreen State",c:["#FFFFFF","#E3F0E3"],fg:"#1D6B3C",img:"Washington_State_License_Plate_2019.jpg"},
+ {id:"WV",name:"West Virginia",nick:"Mountain State",slg:"Wild, Wonderful",c:["#FDF6D8","#BFD9F2"],fg:"#12294A",img:"WV_2023_plate.jpg"},
+ {id:"WI",name:"Wisconsin",nick:"America's Dairyland",slg:"America's Dairyland",c:["#FDEBD0","#F6C28B"],fg:"#B02A37",img:"WI_7digit_2017.jpg"},
+ {id:"WY",name:"Wyoming",nick:"Cowboy State",slg:"Wyoming",c:["#F2C94C","#8B5E3C"],fg:"#12294A",img:null},
+];
+const STATE_BY_ID = Object.fromEntries(STATES.map(s=>[s.id,s]));
+
+/* ================= REMOTE STORE (Supabase) =================
+   Same interface shape as v1's LocalStore, backed by Postgres,
+   Storage and Realtime. Includes a small offline outbox for finds.
+*/
+class RemoteStore {
+  constructor(sb){ this.sb = sb; }
+
+  /* ---- games ---- */
+  async listGames(){
+    const {data,error} = await this.sb.from("games").select("*").order("created_at",{ascending:false});
+    if(error) throw error;
+    localStorage.setItem("pc_games_cache", JSON.stringify(data));
+    return data;
+  }
+  listGamesCached(){ try{ return JSON.parse(localStorage.getItem("pc_games_cache"))||[]; }catch(e){ return []; } }
+  async createGame(title, players){
+    const {data,error} = await this.sb.from("games")
+      .insert({title, players, owner: me().id}).select().single();
+    if(error) throw error;
+    return data;
+  }
+  async updateGame(id, patch){
+    const {data,error} = await this.sb.from("games").update(patch).eq("id",id).select().single();
+    if(error) throw error;
+    return data;
+  }
+  async deleteGame(id){
+    const {error} = await this.sb.from("games").delete().eq("id",id);
+    if(error) throw error;
+  }
+  async joinByCode(code){
+    const {data,error} = await this.sb.rpc("join_by_code",{code});
+    if(error) throw error;
+    return data; // game id
+  }
+
+  /* ---- finds ---- */
+  async listFinds(gameId){
+    const {data,error} = await this.sb.from("finds").select("*").eq("game_id",gameId);
+    if(error) throw error;
+    localStorage.setItem("pc_finds_"+gameId, JSON.stringify(data));
+    return data;
+  }
+  listFindsCached(gameId){ try{ return JSON.parse(localStorage.getItem("pc_finds_"+gameId))||[]; }catch(e){ return []; } }
+  async saveFind(f){
+    if(!navigator.onLine){ this._queue({op:"upsert", f}); return f; }
+    const {data,error} = await this.sb.from("finds").upsert(f).select().single();
+    if(error) throw error;
+    return data;
+  }
+  async deleteFind(gameId, stateId){
+    if(!navigator.onLine){ this._queue({op:"delete", gameId, stateId}); return; }
+    const {error} = await this.sb.from("finds").delete().match({game_id:gameId, state_id:stateId});
+    if(error) throw error;
+  }
+
+  /* ---- offline outbox ---- */
+  _queue(item){
+    const q = this._outbox(); q.push(item);
+    localStorage.setItem("pc_outbox", JSON.stringify(q));
+  }
+  _outbox(){ try{ return JSON.parse(localStorage.getItem("pc_outbox"))||[]; }catch(e){ return []; } }
+  async flushOutbox(){
+    const q = this._outbox();
+    if(!q.length || !navigator.onLine) return 0;
+    let done = 0;
+    for(const item of q){
+      try{
+        if(item.op==="upsert") await this.sb.from("finds").upsert(item.f);
+        if(item.op==="delete") await this.sb.from("finds").delete().match({game_id:item.gameId, state_id:item.stateId});
+        done++;
+      }catch(e){ break; }
+    }
+    localStorage.setItem("pc_outbox", JSON.stringify(q.slice(done)));
+    return done;
+  }
+
+  /* ---- photos (Storage) ---- */
+  async uploadPhoto(gameId, stateId, blob){
+    const path = `${gameId}/${stateId}.jpg`;
+    const {error} = await this.sb.storage.from("photos").upload(path, blob, {upsert:true, contentType:"image/jpeg"});
+    if(error) throw error;
+    return path;
+  }
+  async photoUrl(path){
+    if(this._urlCache?.[path] && this._urlCache[path].exp > Date.now()) return this._urlCache[path].url;
+    const {data,error} = await this.sb.storage.from("photos").createSignedUrl(path, 3600);
+    if(error) return null;
+    this._urlCache = this._urlCache||{};
+    this._urlCache[path] = {url:data.signedUrl, exp:Date.now()+3300*1000};
+    return data.signedUrl;
+  }
+  async deletePhoto(path){ await this.sb.storage.from("photos").remove([path]); }
+
+  /* ---- realtime ---- */
+  subscribeFinds(gameId, onChange){
+    this.unsubscribe();
+    this._chan = this.sb.channel("finds-"+gameId)
+      .on("postgres_changes",{event:"*",schema:"public",table:"finds",filter:`game_id=eq.${gameId}`},onChange)
+      .on("postgres_changes",{event:"*",schema:"public",table:"games",filter:`id=eq.${gameId}`},onChange)
+      .subscribe();
+  }
+  unsubscribe(){ if(this._chan){ this.sb.removeChannel(this._chan); this._chan = null; } }
+}
+
+/* ================= APP ================= */
+let sb = null, store = null, session = null;
+const app = {view:"home", gameId:null, game:null, finds:[], games:[], filter:"all", search:"", sheetState:null};
+const $ = sel=>document.querySelector(sel);
+const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const me = ()=>session?.user;
+const isAnon = ()=>!!me()?.is_anonymous;
+const isOwner = g=>g && me() && g.owner === me().id;
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove("show"),2800);
+}
+function fmtTs(ts){ return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
+function fmtDate(ts){ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});}
+function serial(s){ let n=0; for(const ch of s.name) n=(n*31+ch.charCodeAt(0))%900; return `${s.id}·${String(100+n)}`;}
+function plateHTML(s){
+  const fb = `<div class="plate-fb" style="background:linear-gradient(160deg,${s.c[0]},${s.c[1]});color:${s.fg}">
+      <div class="st">${esc(s.name)}</div><div class="num">${serial(s)}</div><div class="slg">${esc(s.slg)}</div></div>`;
+  if(!s.img) return fb;
+  return `<img src="${IMG(s.img)}" alt="${esc(s.name)} license plate" loading="lazy"
+      onerror="this.outerHTML=${esc(JSON.stringify(fb)).replace(/"/g,"&quot;")}">`;
+}
+function logo(){return `<svg width="30" height="30" viewBox="0 0 32 32" fill="none"><rect x="2" y="8" width="28" height="16" rx="4" fill="#FF385C"/><rect x="5" y="11" width="22" height="10" rx="2" fill="#fff"/><text x="16" y="19.5" font-size="8" font-weight="800" text-anchor="middle" fill="#FF385C" font-family="-apple-system,sans-serif">USA</text></svg>`;}
+function netDot(){ return `<div class="net ${navigator.onLine?"":"off"}" title="${navigator.onLine?"Online":"Offline — finds will sync later"}"></div>`; }
+
+/* ================= AUTH & ROUTING ================= */
+function renderConfigNeeded(){
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="logo">🔧</div>
+    <h2>Almost there</h2>
+    <p class="sub">This copy of Plate Chase isn't connected to its database yet.<br>
+    Open <b>index.html</b> and paste your Supabase <b>Project URL</b> and <b>anon key</b> into the CONFIG block at the top of the script.</p></div>`;
+}
+function renderWelcome(){
+  $("#app").innerHTML = `<div class="auth-wrap">
+    <div class="logo">🚗</div>
+    <h2>Plate Chase</h2>
+    <p class="sub">Spot license plates from all 50 states.<br>The family road-trip classic, on your phone.</p>
+    <div class="field"><label>Parents — sign in with email</label>
+      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" inputmode="email"></div>
+    <button class="btn btn-primary" onclick="sendMagicLink()">Email me a sign-in link</button>
+    <div class="divider">or</div>
+    <div class="field"><label>Joining a game? Enter the code</label>
+      <div class="code-row">
+        <input id="joinCode" placeholder="ABC123" maxlength="6" autocapitalize="characters" autocomplete="off">
+        <button onclick="joinWithCode()">Join</button>
+      </div></div>
+    <p class="gps-note" style="margin-top:16px">Scanning a game's QR code works too — it brings you straight here.</p>
+  </div>`;
+}
+async function sendMagicLink(){
+  const email = $("#authEmail").value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast("That email doesn't look right"); return; }
+  const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: location.origin + location.pathname}});
+  if(error){ toast("Couldn't send the link — try again"); console.error(error); return; }
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="logo">📬</div>
+    <h2>Check your email</h2>
+    <p class="sub">We sent a sign-in link to<br><b>${esc(email)}</b><br><br>Open it on this device and you'll land right back here, signed in.</p></div>`;
+}
+async function ensureSession(){
+  if(session) return session;
+  const {data,error} = await sb.auth.signInAnonymously();
+  if(error) throw error;
+  session = data.session;
+  return session;
+}
+async function joinWithCode(codeArg){
+  const code = (codeArg || $("#joinCode")?.value || "").trim().toUpperCase();
+  if(code.length!==6){ toast("Codes are 6 characters"); return; }
+  try{
+    await ensureSession();
+    const gid = await store.joinByCode(code);
+    confetti(70);
+    await openGame(gid);
+    setTimeout(()=>promptWhoAreYou(),450);
+  }catch(e){
+    toast(e.message?.includes("invalid_code") ? "Hmm, that code didn't match a game" : "Couldn't join — check your connection");
+    if(!session) renderWelcome();
+  }
+}
+function handleHashRoute(){
+  const m = location.hash.match(/^#\/j\/([A-Za-z0-9]{6})/);
+  if(m){
+    history.replaceState(null,"",location.pathname+location.search);
+    joinWithCode(m[1]);
+    return true;
+  }
+  return false;
+}
+async function signOut(){
+  if(!confirm("Sign out on this device?")) return;
+  await sb.auth.signOut();
+  session = null;
+  renderWelcome();
+}
+
+/* ================= HOME ================= */
+async function renderHome(){
+  app.view = "home"; store.unsubscribe();
+  let games = [], offline = false;
+  try{ games = await store.listGames(); }
+  catch(e){ games = store.listGamesCached(); offline = true; }
+  app.games = games;
+  const counts = {};
+  for(const g of games){
+    try{ counts[g.id] = (await store.listFinds(g.id)).length; }
+    catch(e){ counts[g.id] = store.listFindsCached(g.id).length; }
+  }
+  const cards = games.map(g=>{
+    const n = counts[g.id]||0;
+    const when = g.completed_at ? `🏆 Completed ${fmtDate(g.completed_at)}` : `📅 Started ${fmtDate(g.created_at)}`;
+    return `<div class="game-card" onclick="openGame('${g.id}')">
+      ${isOwner(g)?`<button class="edit" onclick="event.stopPropagation();openGameModal('${g.id}')" aria-label="Edit game">✎</button>`:""}
+      <h3>${esc(g.title)}</h3>
+      <div class="meta"><span>${when}</span>${(g.players||[]).length?`<span>👥 ${esc(g.players.join(", "))}</span>`:""}</div>
+      <div class="pbar"><div style="width:${n/50*100}%"></div></div>
+      <div class="pnum">${n} of 50 <span>states found</span></div>
+    </div>`;
+  }).join("");
+  $("#app").innerHTML = `
+    <div class="topbar"><div class="brand">${logo()}Plate Chase</div>${netDot()}
+      <button class="icon-btn" onclick="signOut()" aria-label="Sign out" title="Sign out">⎋</button></div>
+    <div class="page">
+      <div class="hero"><h2>Ready to hunt some plates?</h2>
+      <p>${isAnon()?"You're in as a guest — games you join live here.":"Spot license plates from all 50 states on your road trip."}</p></div>
+      ${cards || `<div class="empty"><div class="big">🚗</div><b>No games yet</b><br>${isAnon()?"Ask for a game code or QR to join!":"Start one for your next road trip!"}</div>`}
+      ${isAnon()?"":`<button class="btn btn-primary" onclick="openGameModal()">＋ &nbsp;New game</button><div style="height:10px"></div>`}
+      <button class="btn btn-ghost" onclick="promptJoinCode()">🎟️ &nbsp;Join with a code</button>
+      ${offline?`<p class="gps-note" style="margin-top:14px">Offline — showing your last synced games.</p>`:""}
+    </div>`;
+}
+function promptJoinCode(){
+  $("#modal").innerHTML = `<div class="backdrop" onclick="closeModal()"></div>
+    <div class="box"><h2>Join a game</h2>
+      <div class="field"><label>Enter the 6-character code</label>
+        <div class="code-row">
+          <input id="joinCode" placeholder="ABC123" maxlength="6" autocapitalize="characters" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){closeModal();joinWithCode();}">
+          <button onclick="const v=document.querySelector('#joinCode').value;closeModal();joinWithCode(v)">Join</button>
+        </div></div>
+      <p class="gps-note">It's under the QR code on the game's invite screen.</p></div>`;
+  $("#modal").classList.add("show");
+  setTimeout(()=>$("#joinCode").focus(),150);
+}
+
+/* ================= GAME ================= */
+async function openGame(id){
+  app.view = "game"; app.gameId = id; app.filter = "all"; app.search = "";
+  store.subscribeFinds(id, ()=>{ if(app.view==="game" && app.gameId===id) refreshGame(); });
+  await refreshGame(true);
+}
+async function refreshGame(scrollTop){
+  let g = app.games.find(x=>x.id===app.gameId);
+  try{
+    const fresh = await store.listGames();
+    app.games = fresh;
+    g = fresh.find(x=>x.id===app.gameId) || g;
+  }catch(e){ g = g || store.listGamesCached().find(x=>x.id===app.gameId); }
+  if(!g){ return renderHome(); }
+  app.game = g;
+  try{ app.finds = await store.listFinds(g.id); }
+  catch(e){ app.finds = store.listFindsCached(g.id); }
+  const foundMap = Object.fromEntries(app.finds.map(f=>[f.state_id,f]));
+  const q = app.search.trim().toLowerCase();
+  let list = STATES.filter(s=>!q || s.name.toLowerCase().includes(q) || s.id.toLowerCase()===q);
+  if(app.filter==="found") list = list.filter(s=>foundMap[s.id]);
+  if(app.filter==="todo") list = list.filter(s=>!foundMap[s.id]);
+  const rows = list.map(s=>{
+    const f = foundMap[s.id];
+    const sub = f ? `Found${f.player?` by ${esc(f.player)}`:""} · ${fmtTs(f.ts)}` : esc(s.nick);
+    return `<div class="state-card ${f?"found":""}" onclick="openSheet('${s.id}')">
+      <div class="plate">${plateHTML(s)}</div>
+      <div class="info"><div class="name">${esc(s.name)}</div><div class="sub">${sub}</div></div>
+      <div class="badge">✓</div>
+    </div>`;
+  }).join("");
+  const n = app.finds.length;
+  const day = g.completed_at ? `completed ${fmtDate(g.completed_at)} 🏆`
+    : `day ${Math.floor((new Date().setHours(0,0,0,0) - new Date(g.created_at).setHours(0,0,0,0))/86400000)+1}`;
+  $("#app").innerHTML = `
+    <div class="topbar">
+      <button class="icon-btn" onclick="renderHome()" aria-label="Back">←</button>
+      <h1>${esc(g.title)}</h1>${netDot()}
+      <button class="icon-btn" onclick="openInvite()" aria-label="Invite players" title="Invite">▦</button>
+      ${isOwner(g)?`<button class="icon-btn" onclick="openGameModal('${g.id}')" aria-label="Edit">✎</button>`:""}
+    </div>
+    <div class="game-head">
+      <div class="counts"><b>${n}</b><span>of 50 states · ${day}</span></div>
+      <div class="pbar"><div style="width:${n/50*100}%"></div></div>
+    </div>
+    <div class="search">🔍<input placeholder="Search states…" value="${esc(app.search)}"
+      oninput="app.search=this.value;refreshGameDebounced()"></div>
+    <div class="chips">
+      <button class="chip ${app.filter==="all"?"on":""}" onclick="setFilter('all')">All 50</button>
+      <button class="chip ${app.filter==="todo"?"on":""}" onclick="setFilter('todo')">Still looking (${50-n})</button>
+      <button class="chip ${app.filter==="found"?"on":""}" onclick="setFilter('found')">Found (${n})</button>
+    </div>
+    <div class="state-list">${rows || `<div class="empty">No states match.</div>`}</div>`;
+  if(scrollTop) window.scrollTo(0,0);
+}
+let _deb;
+function refreshGameDebounced(){ clearTimeout(_deb); _deb=setTimeout(()=>{
+  const inp=$(".search input"); const pos=inp?inp.selectionStart:0;
+  refreshGame().then(()=>{ const i=$(".search input"); if(i&&app.search){i.focus();i.setSelectionRange(pos,pos);} });
+},250);}
+function setFilter(f){ app.filter=f; refreshGame(); }
+
+/* ================= WHO ARE YOU (kid name pick) ================= */
+function myName(){ return localStorage.getItem("pc_name_"+app.gameId) || null; }
+function promptWhoAreYou(){
+  const players = app.game?.players||[];
+  if(!players.length || myName()) return;
+  $("#modal").innerHTML = `<div class="backdrop"></div>
+    <div class="box"><h2>Who are you?</h2>
+      <div class="player-row" style="justify-content:center">
+        ${players.map(p=>`<button class="pchip" onclick="localStorage.setItem('pc_name_${app.gameId}','${esc(p).replace(/'/g,"\\'")}');closeModal();toast('Hi ${esc(p)}! Happy hunting 🚗')">${esc(p)}</button>`).join("")}
+      </div>
+      <button class="btn-danger" onclick="closeModal()">Skip</button></div>`;
+  $("#modal").classList.add("show");
+}
+
+/* ================= STATE DETAIL SHEET ================= */
+let sheetPlayer = null;
+async function openSheet(stateId){
+  const s = STATE_BY_ID[stateId];
+  app.sheetState = stateId;
+  const f = app.finds.find(x=>x.state_id===stateId);
+  sheetPlayer = f?.player ?? myName() ?? sheetPlayer;
+  let inner = `<div class="grip"></div>
+    <div class="bigplate">${plateHTML(s)}</div>
+    <h2>${esc(s.name)}</h2><div class="nick">${esc(s.nick)} · “${esc(s.slg)}”</div>`;
+  if(!f){
+    const players = app.game.players||[];
+    inner += players.length?`
+      <div class="sec-label">Who spotted it?</div>
+      <div class="player-row">${players.map(p=>`
+        <button class="pchip ${sheetPlayer===p?"on":""}" onclick="pickPlayer(this,'${esc(p).replace(/'/g,"\\'")}')">${esc(p)}</button>`).join("")}
+      </div>`:"";
+    inner += `<div style="height:18px"></div>
+      <button class="btn btn-primary" onclick="markFound('${stateId}')">🎉 &nbsp;Found it!</button>
+      <div class="gps-note">📍 Your location is saved with the find (if allowed)</div>`;
+  } else {
+    const gps = (f.lat!=null) ? `<a href="https://maps.apple.com/?ll=${f.lat},${f.lon}&q=${encodeURIComponent(s.name+" plate spotted")}" target="_blank" rel="noopener">${(+f.lat).toFixed(4)}, ${(+f.lon).toFixed(4)}</a>` : `<span style="color:var(--text-2)">not captured</span>`;
+    inner += `<div class="found-box">
+        <div class="row"><div class="ic">✅</div><div><b>Found${f.player?` by ${esc(f.player)}`:""}</b></div></div>
+        <div class="row"><div class="ic">🕐</div><div>${fmtTs(f.ts)}</div></div>
+        <div class="row"><div class="ic">📍</div><div>${gps}</div></div>
+      </div>
+      <div class="photo-wrap" id="photoWrap"></div>
+      <button class="photo-btn" onclick="attachPhoto('${stateId}')">📷 &nbsp;${f.photo_path?"Replace photo":"Add a photo"}</button>
+      <button class="btn-danger" onclick="unmark('${stateId}')">Undo — mark as not found</button>`;
+  }
+  $("#sheet").innerHTML = inner;
+  $("#sheet").classList.add("show"); $("#overlay").classList.add("show");
+  if(f&&f.photo_path){
+    const url = await store.photoUrl(f.photo_path);
+    if(url && app.sheetState===stateId) $("#photoWrap").innerHTML = `<img src="${url}" alt="Photo of find">`;
+  }
+}
+function pickPlayer(el,p){
+  sheetPlayer = (sheetPlayer===p)?null:p;
+  document.querySelectorAll(".player-row .pchip").forEach(b=>b.classList.toggle("on", b.textContent===sheetPlayer));
+}
+function closeSheet(){ $("#sheet").classList.remove("show"); $("#overlay").classList.remove("show"); app.sheetState=null; }
+$("#overlay").addEventListener("click",closeSheet);
+
+async function markFound(stateId){
+  const find = {game_id:app.gameId, state_id:stateId, player:sheetPlayer||null,
+    found_by:me()?.id||null, ts:new Date().toISOString(), lat:null, lon:null};
+  /* optimistic UI */
+  app.finds = app.finds.filter(f=>f.state_id!==stateId).concat([find]);
+  closeSheet(); confetti();
+  const n = app.finds.length;
+  if(n>=50){ bigWin(); } else { toast(`${STATE_BY_ID[stateId].name} found! ${n} of 50 🎉`); }
+  try{ await store.saveFind(find); }catch(e){ toast("Couldn't sync — will retry"); }
+  await refreshGame();
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      try{
+        await store.saveFind({...find, lat:pos.coords.latitude, lon:pos.coords.longitude});
+        if(app.sheetState===stateId) openSheet(stateId); else refreshGame();
+      }catch(e){}
+    }, ()=>{}, {enableHighAccuracy:false, timeout:10000, maximumAge:60000});
+  }
+}
+async function unmark(stateId){
+  if(!confirm("Remove this find? The photo and location will be deleted too.")) return;
+  const f = app.finds.find(x=>x.state_id===stateId);
+  if(f?.photo_path){ try{ await store.deletePhoto(f.photo_path); }catch(e){} }
+  try{ await store.deleteFind(app.gameId, stateId); }catch(e){ toast("Couldn't sync — will retry"); }
+  closeSheet(); refreshGame(); toast("Removed");
+}
+function attachPhoto(stateId){
+  const input = $("#photoInput");
+  input.onchange = async ()=>{
+    const file = input.files[0]; input.value="";
+    if(!file) return;
+    if(!navigator.onLine){ toast("Photos need a connection — try again when online"); return; }
+    toast("Uploading photo…");
+    try{
+      const blob = await downscale(file, 1200, .82);
+      const path = await store.uploadPhoto(app.gameId, stateId, blob);
+      const f = app.finds.find(x=>x.state_id===stateId);
+      await store.saveFind({...f, photo_path:path});
+      await refreshGame();
+      openSheet(stateId); toast("Photo saved 📷");
+    }catch(e){ toast("Upload failed — try again"); console.error(e); }
+  };
+  input.click();
+}
+function downscale(file, max, q){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let {width:w,height:h} = img;
+      if(Math.max(w,h)>max){ const k=max/Math.max(w,h); w=Math.round(w*k); h=Math.round(h*k); }
+      const cv = document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      cv.toBlob(b=>res(b||file), "image/jpeg", q);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = ()=>res(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/* ================= GAME CREATE / EDIT ================= */
+let modalPlayers = [];
+function openGameModal(id){
+  const g = id ? app.games.find(x=>x.id===id) : null;
+  modalPlayers = g ? [...(g.players||[])] : [];
+  $("#modal").innerHTML = `
+    <div class="backdrop" onclick="closeModal()"></div>
+    <div class="box">
+      <h2>${g?"Edit game":"New game"}</h2>
+      <div class="field"><label>Game name</label>
+        <input id="gTitle" placeholder="Summer Road Trip 2026" value="${g?esc(g.title):""}" maxlength="60"></div>
+      <div class="field"><label>Players</label>
+        <div class="player-editor" id="pEditor"></div>
+        <div class="add-player">
+          <input id="pName" placeholder="Add a player…" maxlength="20" onkeydown="if(event.key==='Enter'){event.preventDefault();addPlayer();}">
+          <button onclick="addPlayer()">Add</button>
+        </div></div>
+      <button class="btn btn-primary" onclick="saveGameModal('${g?g.id:""}')">${g?"Save changes":"Start game 🚗"}</button>
+      ${g?`<button class="btn-danger" onclick="deleteGameModal('${g.id}')">Delete this game</button>`:""}
+    </div>`;
+  renderPlayerEditor();
+  $("#modal").classList.add("show");
+  if(!g) setTimeout(()=>$("#gTitle").focus(),150);
+}
+function renderPlayerEditor(){
+  $("#pEditor").innerHTML = modalPlayers.map((p,i)=>
+    `<button class="pchip" onclick="modalPlayers.splice(${i},1);renderPlayerEditor()">${esc(p)}<span class="x">✕</span></button>`).join("")
+    || `<span style="color:var(--text-2);font-size:13.5px">No players yet — add the whole crew!</span>`;
+}
+function addPlayer(){
+  const inp = $("#pName"); const v = inp.value.trim();
+  if(!v) return;
+  if(modalPlayers.some(p=>p.toLowerCase()===v.toLowerCase())){ toast("Already added"); return; }
+  if(modalPlayers.length>=8){ toast("Max 8 players"); return; }
+  modalPlayers.push(v); inp.value=""; inp.focus(); renderPlayerEditor();
+}
+function closeModal(){ $("#modal").classList.remove("show"); }
+async function saveGameModal(id){
+  const title = $("#gTitle").value.trim() || "License Plate Game";
+  try{
+    if(id){ await store.updateGame(id, {title, players:modalPlayers}); }
+    else{
+      const g = await store.createGame(title, modalPlayers);
+      closeModal(); await openGame(g.id); toast("Game created — happy hunting! 🚗");
+      setTimeout(()=>openInvite(),600);
+      return;
+    }
+    closeModal();
+    if(app.view==="game") refreshGame(); else renderHome();
+  }catch(e){ toast("Couldn't save — check your connection"); console.error(e); }
+}
+async function deleteGameModal(id){
+  if(!confirm("Delete this game for the whole family? Finds and photos go too.")) return;
+  try{ await store.deleteGame(id); closeModal(); renderHome(); toast("Game deleted"); }
+  catch(e){ toast("Couldn't delete — check your connection"); }
+}
+
+/* ================= INVITE ================= */
+const _loadedScripts = {};
+function loadScript(url){
+  if(_loadedScripts[url]) return _loadedScripts[url];
+  _loadedScripts[url] = new Promise((res,rej)=>{
+    const s = document.createElement("script");
+    s.src = url; s.onload = res;
+    s.onerror = ()=>{ delete _loadedScripts[url]; rej(new Error("offline")); };
+    document.head.appendChild(s);
+  });
+  return _loadedScripts[url];
+}
+async function openInvite(){
+  const g = app.game;
+  const url = `${location.origin}${location.pathname}#/j/${g.join_code}`;
+  $("#sheet").innerHTML = `<div class="grip"></div>
+    <h2>Invite to “${esc(g.title)}”</h2>
+    <div class="nick">Scan with any phone camera — it opens the game</div>
+    <div id="qrBox" style="display:flex;justify-content:center;margin:8px 0 10px;min-height:120px;align-items:center">
+      <span style="color:var(--text-2)">Making your code…</span></div>
+    <div class="joincode">${g.join_code.split("").map(c=>`<span>${c}</span>`).join("")}</div>
+    <p class="gps-note" style="margin-bottom:8px">No camera handy? They can type this code on the welcome screen.</p>
+    <button class="btn btn-ghost" onclick="shareInvite('${url}')">Share the link instead</button>`;
+  $("#sheet").classList.add("show"); $("#overlay").classList.add("show");
+  try{
+    await loadScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js");
+    const qr = qrcode(0,"M"); qr.addData(url); qr.make();
+    const box = $("#qrBox");
+    if(box) box.innerHTML = `<img src="${qr.createDataURL(8,10)}" alt="Join game QR code"
+      style="width:min(270px,80%);image-rendering:pixelated;border:1px solid var(--border);border-radius:16px;padding:6px;background:#fff">`;
+  }catch(e){
+    const box = $("#qrBox");
+    if(box) box.innerHTML = `<span style="color:var(--text-2);text-align:center;font-size:14px">Couldn't draw the QR (offline?) — share the code below instead.</span>`;
+  }
+}
+async function shareInvite(url){
+  if(navigator.share){ try{ await navigator.share({title:"Join our Plate Chase game!", url}); }catch(e){} }
+  else{ try{ await navigator.clipboard.writeText(url); toast("Link copied!"); }catch(e){ toast(url); } }
+}
+
+/* ================= CONFETTI & WIN ================= */
+function confetti(n=90){
+  const colors = ["#FF385C","#FFB400","#00A699","#484848","#FC642D","#7B61FF"];
+  for(let i=0;i<n;i++){
+    const d = document.createElement("div");
+    d.className = "confetti-piece";
+    const size = 6+Math.random()*8;
+    d.style.cssText = `left:${Math.random()*100}vw;width:${size}px;height:${size*.6}px;
+      background:${colors[i%colors.length]};border-radius:${Math.random()>.5?"50%":"2px"};
+      animation:cfall ${1.6+Math.random()*1.6}s ${Math.random()*.4}s cubic-bezier(.2,.6,.4,1) forwards`;
+    document.body.appendChild(d);
+    setTimeout(()=>d.remove(),4200);
+  }
+}
+function bigWin(){
+  confetti(220);
+  const w = document.createElement("div");
+  w.className = "winbox";
+  w.innerHTML = `<div class="t">🏆</div><h2>ALL 50 STATES!</h2>
+    <p>You found every single license plate.<br>Legendary road trip status unlocked.</p>
+    <button class="btn btn-primary" style="max-width:260px" onclick="this.closest('.winbox').remove()">Woohoo!</button>`;
+  document.body.appendChild(w);
+}
+
+/* ================= BOOT ================= */
+async function boot(){
+  if(!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL.startsWith("PASTE")){ renderConfigNeeded(); return; }
+  sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  store = new RemoteStore(sb);
+  const {data} = await sb.auth.getSession();
+  session = data.session;
+  sb.auth.onAuthStateChange((_e, s)=>{ session = s; });
+  window.addEventListener("online", async ()=>{
+    const n = await store.flushOutbox();
+    if(n) toast(`Back online — ${n} find${n>1?"s":""} synced ✅`);
+    if(app.view==="game") refreshGame(); else if(session) renderHome();
+  });
+  window.addEventListener("offline", ()=>toast("Offline — finds will sync when you're back"));
+  await store.flushOutbox();
+  if(handleHashRoute()) return;
+  if(session) renderHome(); else renderWelcome();
+  window.addEventListener("hashchange", handleHashRoute);
+}
+boot().catch(e=>{
+  console.error(e);
+  document.body.innerHTML = `<div style="padding:40px;text-align:center;font-family:sans-serif">
+    <h2>Something went wrong starting up</h2><p>Check the browser console for details.</p></div>`;
+});
+</script>
+</body>
+</html>
