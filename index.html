@@ -267,6 +267,16 @@ class RemoteStore {
     if(error) throw error;
     return data; // game id
   }
+  async listMembers(gameId){
+    const {data,error} = await this.sb.from("game_members").select("*").eq("game_id",gameId).order("joined_at");
+    if(error) throw error;
+    return data;
+  }
+  async claimName(gameId, name){
+    const {error} = await this.sb.from("game_members").update({claimed_name:name})
+      .match({game_id:gameId, user_id: me().id});
+    if(error) throw error;
+  }
 
   /* ---- finds ---- */
   async listFinds(gameId){
@@ -403,9 +413,33 @@ async function ensureSession(){
   session = data.session;
   return session;
 }
-async function joinWithCode(codeArg){
+function joinChoice(code){
+  /* opening a join link with no session: guest (kid) or parent sign-in first */
+  $("#modal").innerHTML = `<div class="backdrop"></div>
+    <div class="box"><h2>You're invited! 🎉</h2>
+      <button class="btn btn-primary" onclick="closeModal();joinWithCode('${code}',true)">🚗 &nbsp;Just play — no account needed</button>
+      <div class="divider">or</div>
+      <div class="field"><label>Parents — sign in so the game follows your email</label>
+        <input type="email" id="joinEmail" placeholder="you@example.com" autocomplete="email" inputmode="email"></div>
+      <button class="btn btn-ghost" onclick="parentJoin('${code}')">Email me a sign-in link</button>
+    </div>`;
+  $("#modal").classList.add("show");
+}
+async function parentJoin(code){
+  const email = $("#joinEmail").value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast("That email doesn't look right"); return; }
+  localStorage.setItem("pc_pending_join", code);
+  const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: location.origin + location.pathname}});
+  if(error){ toast("Couldn't send the link — try again"); return; }
+  closeModal();
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="logo">📬</div>
+    <h2>Check your email</h2>
+    <p class="sub">Tap the link we sent to <b>${esc(email)}</b> on this device —<br>you'll be signed in and dropped straight into the game.</p></div>`;
+}
+async function joinWithCode(codeArg, asGuest){
   const code = (codeArg || $("#joinCode")?.value || "").trim().toUpperCase();
   if(code.length!==6){ toast("Codes are 6 characters"); return; }
+  if(!session && !asGuest){ joinChoice(code); return; }
   try{
     await ensureSession();
     const gid = await store.joinByCode(code);
@@ -546,16 +580,22 @@ function setFilter(f){ app.filter=f; refreshGame(); }
 
 /* ================= WHO ARE YOU (kid name pick) ================= */
 function myName(){ return localStorage.getItem("pc_name_"+app.gameId) || null; }
-function promptWhoAreYou(){
+function promptWhoAreYou(thenInvite){
   const players = app.game?.players||[];
-  if(!players.length || myName()) return;
+  if(!players.length || myName()){ if(thenInvite) openInvite(); return; }
   $("#modal").innerHTML = `<div class="backdrop"></div>
     <div class="box"><h2>Who are you?</h2>
       <div class="player-row" style="justify-content:center">
-        ${players.map(p=>`<button class="pchip" onclick="localStorage.setItem('pc_name_${app.gameId}','${esc(p).replace(/'/g,"\\'")}');closeModal();toast('Hi ${esc(p)}! Happy hunting 🚗')">${esc(p)}</button>`).join("")}
+        ${players.map(p=>`<button class="pchip" onclick="pickWho('${esc(p).replace(/'/g,"\\'")}',${thenInvite?"true":"false"})">${esc(p)}</button>`).join("")}
       </div>
-      <button class="btn-danger" onclick="closeModal()">Skip</button></div>`;
+      <button class="btn-danger" onclick="closeModal();${thenInvite?"openInvite()":""}">Skip</button></div>`;
   $("#modal").classList.add("show");
+}
+async function pickWho(name, thenInvite){
+  localStorage.setItem("pc_name_"+app.gameId, name);
+  try{ await store.claimName(app.gameId, name); }catch(e){ /* offline is fine — name still works locally */ }
+  closeModal(); toast(`Hi ${name}! Happy hunting 🚗`);
+  if(thenInvite) openInvite();
 }
 
 /* ================= STATE DETAIL SHEET ================= */
@@ -707,7 +747,7 @@ async function saveGameModal(id){
     else{
       const g = await store.createGame(title, modalPlayers);
       closeModal(); await openGame(g.id); toast("Game created — happy hunting! 🚗");
-      setTimeout(()=>openInvite(),600);
+      setTimeout(()=>promptWhoAreYou(true),500);
       return;
     }
     closeModal();
@@ -735,6 +775,20 @@ function loadScript(url){
 async function openInvite(){
   const g = app.game;
   const url = `${location.origin}${location.pathname}#/j/${g.join_code}`;
+  let membersHtml = "";
+  try{
+    const members = await store.listMembers(g.id);
+    if(members.length){
+      membersHtml = `<div class="sec-label">In this game (${members.length})</div>` + members.map(m=>{
+        const who = m.claimed_name ? esc(m.claimed_name) : "Not picked yet";
+        const crown = m.user_id===g.owner ? " 👑" : "";
+        const you = me() && m.user_id===me().id ? ` <span style="color:var(--text-2);font-weight:400">(you)</span>` : "";
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid var(--surface);font-size:14.5px">
+          <span><b>${who}</b>${crown}${you}</span>
+          <span style="color:var(--text-2);font-size:12.5px">joined ${fmtDate(m.joined_at)}</span></div>`;
+      }).join("");
+    }
+  }catch(e){ /* offline — skip the list */ }
   $("#sheet").innerHTML = `<div class="grip"></div>
     <h2>Invite to “${esc(g.title)}”</h2>
     <div class="nick">Scan with any phone camera — it opens the game</div>
@@ -742,7 +796,8 @@ async function openInvite(){
       <span style="color:var(--text-2)">Making your code…</span></div>
     <div class="joincode">${g.join_code.split("").map(c=>`<span>${c}</span>`).join("")}</div>
     <p class="gps-note" style="margin-bottom:8px">No camera handy? They can type this code on the welcome screen.</p>
-    <button class="btn btn-ghost" onclick="shareInvite('${url}')">Share the link instead</button>`;
+    <button class="btn btn-ghost" onclick="shareInvite('${url}')">Share the link instead</button>
+    ${membersHtml}`;
   $("#sheet").classList.add("show"); $("#overlay").classList.add("show");
   try{
     await loadScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js");
@@ -799,6 +854,14 @@ async function boot(){
   });
   window.addEventListener("offline", ()=>toast("Offline — finds will sync when you're back"));
   await store.flushOutbox();
+  /* parent clicked a magic link after opening a join link — finish the join now */
+  const pending = localStorage.getItem("pc_pending_join");
+  if(session && pending){
+    localStorage.removeItem("pc_pending_join");
+    joinWithCode(pending);
+    window.addEventListener("hashchange", handleHashRoute);
+    return;
+  }
   if(handleHashRoute()) return;
   if(session) renderHome(); else renderWelcome();
   window.addEventListener("hashchange", handleHashRoute);
