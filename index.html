@@ -637,7 +637,7 @@ async function refreshGame(scrollTop){
   if(app.filter==="todo") list = list.filter(s=>!foundMap[s.id]);
   const rows = list.map(s=>{
     const f = foundMap[s.id];
-    const sub = f ? `Found${f.player?` by ${esc(f.player)}`:""} · ${fmtTs(f.ts)}` : esc(s.nick);
+    const sub = f ? `Found · ${fmtTs(f.ts)}` : esc(s.nick);
     return `<div class="state-card ${f?"found":""}" onclick="openSheet('${s.id}')">
       <div class="plate">${plateHTML(s)}</div>
       <div class="info"><div class="name">${esc(s.name)}</div><div class="sub">${sub}</div></div>
