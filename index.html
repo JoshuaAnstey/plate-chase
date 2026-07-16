@@ -92,7 +92,11 @@
     max-width:560px;margin:0 auto;max-height:92vh;overflow-y:auto;transform:translateY(105%);
     transition:transform .32s cubic-bezier(.2,.8,.2,1);padding:10px 22px calc(26px + var(--safe-b))}
   .sheet.show{transform:translateY(0)}
-  .grip{width:38px;height:4px;border-radius:99px;background:#DDD;margin:6px auto 16px}
+  .grip{width:38px;height:4px;border-radius:99px;background:#DDD;margin:0 auto}
+  .grip-zone{padding:10px 0 14px;cursor:pointer;touch-action:none}
+  .sheet-close{position:sticky;top:6px;float:right;width:34px;height:34px;border-radius:50%;
+    background:var(--surface);display:flex;align-items:center;justify-content:center;
+    font-size:14px;color:var(--text-2);z-index:5}
   .sheet .bigplate{width:min(320px,80%);aspect-ratio:2/1;margin:6px auto 16px;border-radius:12px;overflow:hidden;
     box-shadow:var(--shadow);background:var(--surface);position:relative}
   .sheet .bigplate img{width:100%;height:100%;object-fit:cover;display:block}
@@ -623,12 +627,16 @@ async function pickWho(name, thenInvite){
 
 /* ================= STATE DETAIL SHEET ================= */
 let sheetPlayer = null;
+function sheetTop(){
+  return `<button class="sheet-close" onclick="closeSheet()" aria-label="Close">✕</button>
+    <div class="grip-zone" onclick="closeSheet()"><div class="grip"></div></div>`;
+}
 async function openSheet(stateId){
   const s = STATE_BY_ID[stateId];
   app.sheetState = stateId;
   const f = app.finds.find(x=>x.state_id===stateId);
   sheetPlayer = f?.player ?? myName() ?? sheetPlayer;
-  let inner = `<div class="grip"></div>
+  let inner = `${sheetTop()}
     <div class="bigplate">${plateHTML(s)}</div>
     <h2>${esc(s.name)}</h2><div class="nick">${esc(s.nick)} · “${esc(s.slg)}”</div>`;
   if(!f){
@@ -665,6 +673,19 @@ function pickPlayer(el,p){
 }
 function closeSheet(){ $("#sheet").classList.remove("show"); $("#overlay").classList.remove("show"); app.sheetState=null; }
 $("#overlay").addEventListener("click",closeSheet);
+/* swipe down to dismiss the sheet (home-screen app has no visible overlay to tap) */
+(function(){
+  const sh = $("#sheet");
+  let startY = null, startScroll = 0;
+  sh.addEventListener("touchstart", e=>{ startY = e.touches[0].clientY; startScroll = sh.scrollTop; }, {passive:true});
+  sh.addEventListener("touchend", e=>{
+    if(startY===null) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    if(startScroll<=0 && sh.scrollTop<=0 && dy>90) closeSheet();
+    startY = null;
+  }, {passive:true});
+})();
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeSheet(); closeModal(); } });
 
 async function markFound(stateId){
   const find = {game_id:app.gameId, state_id:stateId, player:sheetPlayer||null,
@@ -812,7 +833,7 @@ async function openInvite(){
       }).join("");
     }
   }catch(e){ /* offline — skip the list */ }
-  $("#sheet").innerHTML = `<div class="grip"></div>
+  $("#sheet").innerHTML = `${sheetTop()}
     <h2>Invite to “${esc(g.title)}”</h2>
     <div class="nick">Scan with any phone camera — it opens the game</div>
     <div id="qrBox" style="display:flex;justify-content:center;margin:8px 0 10px;min-height:120px;align-items:center">
