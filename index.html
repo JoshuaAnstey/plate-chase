@@ -47,6 +47,9 @@
   .map-plate{width:58px;height:31px;border-radius:5px;overflow:hidden;background:#fff;
     border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);transform:translate(-50%,-50%)}
   .map-plate img{width:100%;height:100%;object-fit:cover;display:block}
+  .map-cluster{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#FF385C,#D70466);
+    color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;
+    border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);transform:translate(-50%,-50%)}
   .leaflet-popup-content{font-family:inherit;font-size:13.5px;line-height:1.5}
   .stats-row{display:flex;gap:12px;margin:18px 0 4px}
   .stat{flex:1;background:var(--surface);border-radius:14px;padding:14px 10px;text-align:center}
@@ -1116,6 +1119,8 @@ async function openMap(){
   try{
     loadCss("https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css");
     await loadScript("https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js");
+    loadCss("https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css");
+    await loadScript("https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js").catch(()=>{});
   }catch(e){
     $("#mapCanvas").innerHTML = `<div class="empty" style="padding-top:80px"><div class="big">📡</div>
       <b>The map needs a connection</b><br>Try again when you're back online.</div>`;
@@ -1129,16 +1134,24 @@ async function openMap(){
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     {maxZoom:20, subdomains:"abcd", attribution:'© OpenStreetMap © CARTO'}).addTo(map);
   const bounds = [];
+  /* clusters collapse into count bubbles; falls back to plain markers if the plugin didn't load */
+  const group = L.markerClusterGroup ? L.markerClusterGroup({
+    showCoverageOnHover:false, maxClusterRadius:52,
+    iconCreateFunction: c => L.divIcon({className:"", iconSize:null,
+      html:`<div class="map-cluster">${c.getChildCount()}</div>`})
+  }) : null;
   for(const f of pts){
     const s = STATE_BY_ID[f.state_id];
     if(!s) continue;
     bounds.push([f.lat, f.lon]);
     const file = currentPlateFile(s.id) || s.img;
+    const pinFb = `<div class="map-plate" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,${s.c[0]},${s.c[1]});color:${s.fg};font-weight:800;font-size:12.5px;letter-spacing:.5px">${s.id}</div>`;
     const pinHtml = file
       ? `<div class="map-plate"><img src="${IMG(file)}" alt="${esc(s.id)}" loading="lazy"
-           onerror="this.parentElement.outerHTML='<div class=&quot;map-pin&quot;>${s.id}</div>'"></div>`
-      : `<div class="map-pin" style="background:${s.c[0]};color:${s.fg};border-color:#fff">${s.id}</div>`;
-    const m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:"", html:pinHtml, iconSize:null})}).addTo(map);
+           onerror="this.parentElement.outerHTML=${esc(JSON.stringify(pinFb)).replace(/"/g,"&quot;")}"></div>`
+      : pinFb;
+    const m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:"", html:pinHtml, iconSize:null})});
+    if(group) group.addLayer(m); else m.addTo(map);
     m.on("click", async ()=>{
       const finder = f.player || members.find(x=>x.user_id===f.found_by)?.claimed_name || null;
       let html = `<b>${esc(s.name)}</b><br>${finder?`Found by ${esc(finder)}<br>`:""}${fmtTs(f.ts)}`;
@@ -1151,6 +1164,7 @@ async function openMap(){
       m.bindPopup(html).openPopup();
     });
   }
+  if(group) map.addLayer(group);
   if(bounds.length===1) map.setView(bounds[0], 11);
   else map.fitBounds(bounds, {padding:[45,45]});
 }
