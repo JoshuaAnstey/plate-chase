@@ -1050,8 +1050,9 @@ async function openMap(){
   try{ members = await membersCached(app.gameId); }catch(e){}
   const map = L.map("mapCanvas", {zoomControl:true});
   mapInstance = map;
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+  /* CARTO Positron: minimal near-white basemap so the pins stand out */
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    {maxZoom:20, subdomains:"abcd", attribution:'© OpenStreetMap © CARTO'}).addTo(map);
   const bounds = [];
   for(const f of pts){
     const s = STATE_BY_ID[f.state_id];
