@@ -853,6 +853,38 @@ function downscale(file, max, q){
 
 /* ================= GAME CREATE / EDIT ================= */
 let modalPlayers = [];
+let knownPlayersCache = null;
+/* names of everyone you've shared a game with: player lists + claimed names */
+async function knownPlayers(){
+  if(knownPlayersCache && Date.now()-knownPlayersCache.ts < 120000) return knownPlayersCache.list;
+  const names = new Map();
+  try{
+    const games = app.games.length ? app.games : await store.listGames();
+    for(const g of games.slice(0,10)){
+      for(const p of (g.players||[])) if(p) names.set(p.toLowerCase(), p);
+      try{
+        const members = await store.listMembers(g.id);
+        for(const m of members) if(m.claimed_name) names.set(m.claimed_name.toLowerCase(), m.claimed_name);
+      }catch(e){}
+    }
+  }catch(e){}
+  knownPlayersCache = {ts:Date.now(), list:[...names.values()]};
+  return knownPlayersCache.list;
+}
+function renderSuggestions(){
+  const box = $("#suggestBox");
+  if(!box) return;
+  const avail = (knownPlayersCache?.list||[]).filter(p=>!modalPlayers.some(x=>x.toLowerCase()===p.toLowerCase()));
+  box.innerHTML = avail.length ? `
+    <label style="display:block;font-size:13px;font-weight:700;margin:14px 0 8px">Played with before — tap to add</label>
+    <div class="player-row">${avail.map(p=>
+      `<button class="pchip" onclick="addSuggested('${esc(p).replace(/'/g,"\\'")}')">＋ ${esc(p)}</button>`).join("")}</div>` : "";
+}
+function addSuggested(p){
+  if(modalPlayers.length>=8){ toast("Max 8 players"); return; }
+  if(!modalPlayers.some(x=>x.toLowerCase()===p.toLowerCase())) modalPlayers.push(p);
+  renderPlayerEditor();
+}
 function openGameModal(id){
   const g = id ? app.games.find(x=>x.id===id) : null;
   modalPlayers = g ? [...(g.players||[])] : [];
@@ -867,18 +899,21 @@ function openGameModal(id){
         <div class="add-player">
           <input id="pName" placeholder="Add a player…" maxlength="20" onkeydown="if(event.key==='Enter'){event.preventDefault();addPlayer();}">
           <button onclick="addPlayer()">Add</button>
-        </div></div>
+        </div>
+        <div id="suggestBox"></div></div>
       <button class="btn btn-primary" onclick="saveGameModal('${g?g.id:""}')">${g?"Save changes":"Start game 🚗"}</button>
       ${g?`<button class="btn-danger" onclick="deleteGameModal('${g.id}')">Delete this game</button>`:""}
     </div>`;
   renderPlayerEditor();
   $("#modal").classList.add("show");
   if(!g) setTimeout(()=>$("#gTitle").focus(),150);
+  knownPlayers().then(renderSuggestions);
 }
 function renderPlayerEditor(){
   $("#pEditor").innerHTML = modalPlayers.map((p,i)=>
     `<button class="pchip" onclick="modalPlayers.splice(${i},1);renderPlayerEditor()">${esc(p)}<span class="x">✕</span></button>`).join("")
     || `<span style="color:var(--text-2);font-size:13.5px">No players yet — add the whole crew!</span>`;
+  renderSuggestions();
 }
 function addPlayer(){
   const inp = $("#pName"); const v = inp.value.trim();
