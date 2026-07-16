@@ -1213,6 +1213,10 @@ function bigWin(){
 }
 
 /* ================= BOOT ================= */
+/* service worker: keeps plates/libraries/tiles cached so launches are instant */
+if("serviceWorker" in navigator && location.protocol === "https:"){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
 async function boot(){
   if(!CONFIG.SUPABASE_URL || CONFIG.SUPABASE_URL.startsWith("PASTE")){ renderConfigNeeded(); return; }
   sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
