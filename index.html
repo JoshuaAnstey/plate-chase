@@ -44,6 +44,9 @@
   .map-pin{background:#fff;border:2px solid var(--primary);border-radius:6px;font-weight:800;font-size:11px;
     color:var(--text);padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap;
     display:inline-block;transform:translate(-50%,-50%)}
+  .map-plate{width:58px;height:31px;border-radius:5px;overflow:hidden;background:#fff;
+    border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);transform:translate(-50%,-50%)}
+  .map-plate img{width:100%;height:100%;object-fit:cover;display:block}
   .leaflet-popup-content{font-family:inherit;font-size:13.5px;line-height:1.5}
   .stats-row{display:flex;gap:12px;margin:18px 0 4px}
   .stat{flex:1;background:var(--surface);border-radius:14px;padding:14px 10px;text-align:center}
@@ -1130,7 +1133,12 @@ async function openMap(){
     const s = STATE_BY_ID[f.state_id];
     if(!s) continue;
     bounds.push([f.lat, f.lon]);
-    const m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:"", html:`<div class="map-pin">${s.id}</div>`, iconSize:null})}).addTo(map);
+    const file = currentPlateFile(s.id) || s.img;
+    const pinHtml = file
+      ? `<div class="map-plate"><img src="${IMG(file)}" alt="${esc(s.id)}" loading="lazy"
+           onerror="this.parentElement.outerHTML='<div class=&quot;map-pin&quot;>${s.id}</div>'"></div>`
+      : `<div class="map-pin" style="background:${s.c[0]};color:${s.fg};border-color:#fff">${s.id}</div>`;
+    const m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:"", html:pinHtml, iconSize:null})}).addTo(map);
     m.on("click", async ()=>{
       const finder = f.player || members.find(x=>x.user_id===f.found_by)?.claimed_name || null;
       let html = `<b>${esc(s.name)}</b><br>${finder?`Found by ${esc(finder)}<br>`:""}${fmtTs(f.ts)}`;
