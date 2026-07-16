@@ -29,8 +29,12 @@
   .icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
     border:1px solid var(--border);background:#fff;font-size:16px;flex-shrink:0;transition:transform .12s}
   .icon-btn:active{transform:scale(.92)}
-  .net{width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0}
-  .net.off{background:#F5A623}
+  .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#FF385C,#D70466);color:#fff;
+    font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    border:2.5px solid transparent;transition:transform .12s}
+  .avatar:active{transform:scale(.92)}
+  .avatar.off{border-color:#F5A623}
+  .avatar.big{width:74px;height:74px;font-size:30px;margin:0 auto 14px}
   .page{padding:20px;flex:1;padding-bottom:calc(40px + var(--safe-b))}
   .hero{margin:6px 0 22px}
   .hero h2{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
@@ -281,6 +285,10 @@ class RemoteStore {
       .match({game_id:gameId, user_id: me().id});
     if(error) throw error;
   }
+  async addPlayer(gameId, name){
+    const {error} = await this.sb.rpc("add_player", {g:gameId, player:name});
+    if(error) throw error;
+  }
 
   /* ---- finds ---- */
   async listFinds(gameId){
@@ -375,7 +383,44 @@ function plateHTML(s){
       onerror="this.outerHTML=${esc(JSON.stringify(fb)).replace(/"/g,"&quot;")}">`;
 }
 function logo(){return `<svg width="30" height="30" viewBox="0 0 32 32" fill="none"><rect x="2" y="8" width="28" height="16" rx="4" fill="#FF385C"/><rect x="5" y="11" width="22" height="10" rx="2" fill="#fff"/><text x="16" y="19.5" font-size="8" font-weight="800" text-anchor="middle" fill="#FF385C" font-family="-apple-system,sans-serif">USA</text></svg>`;}
-function netDot(){ return `<div class="net ${navigator.onLine?"":"off"}" title="${navigator.onLine?"Online":"Offline — finds will sync later"}"></div>`; }
+function displayName(){
+  return localStorage.getItem("pc_display_name")
+    || me()?.user_metadata?.name || me()?.user_metadata?.full_name || "";
+}
+function avatarBtn(){
+  const n = displayName();
+  return `<button class="avatar ${navigator.onLine?"":"off"}" onclick="openProfile()"
+    title="${esc(n||"Set your name")}" aria-label="Your profile">${n?esc(n[0].toUpperCase()):"👤"}</button>`;
+}
+function openProfile(){
+  const n = displayName();
+  const acct = isAnon() ? "Playing as a guest on this device" : `Signed in as ${esc(me()?.email||"")}`;
+  $("#sheet").innerHTML = `${sheetTop()}
+    <div class="avatar big">${n?esc(n[0].toUpperCase()):"👤"}</div>
+    <h2>Your profile</h2>
+    <div class="nick">${acct}</div>
+    <div class="field" style="margin-top:4px"><label>Your name</label>
+      <input id="profName" maxlength="20" placeholder="e.g. Sawyer" value="${esc(n)}"
+        onkeydown="if(event.key==='Enter'){saveProfile();}"></div>
+    <button class="btn btn-primary" onclick="saveProfile()">Save</button>
+    <p class="gps-note" style="margin-top:16px">${navigator.onLine
+      ? "🟢 Online — finds sync to everyone instantly"
+      : "🟠 Offline — finds are saved on this phone and sync when you're back"}</p>
+    <button class="btn-danger" onclick="signOut()">Sign out on this device</button>`;
+  $("#sheet").classList.add("show"); $("#overlay").classList.add("show");
+}
+async function saveProfile(){
+  const n = $("#profName").value.trim();
+  if(!n){ toast("Type a name first"); return; }
+  localStorage.setItem("pc_display_name", n);
+  try{ await sb.auth.updateUser({data:{name:n}}); }catch(e){ /* offline is fine */ }
+  if(app.gameId){
+    if(!localStorage.getItem("pc_name_"+app.gameId)) localStorage.setItem("pc_name_"+app.gameId, n);
+    try{ await store.claimName(app.gameId, localStorage.getItem("pc_name_"+app.gameId)); }catch(e){}
+  }
+  closeSheet(); toast(`Hi ${n}! 👋`);
+  if(app.view==="game") refreshGame(); else renderHome();
+}
 
 /* ================= AUTH & ROUTING ================= */
 function renderConfigNeeded(){
@@ -506,8 +551,7 @@ async function renderHome(){
     </div>`;
   }).join("");
   $("#app").innerHTML = `
-    <div class="topbar"><div class="brand">${logo()}Plate Chase</div>${netDot()}
-      <button class="icon-btn" onclick="signOut()" aria-label="Sign out" title="Sign out">⎋</button></div>
+    <div class="topbar"><div class="brand">${logo()}Plate Chase</div>${avatarBtn()}</div>
     <div class="page">
       <div class="hero"><h2>Ready to hunt some plates?</h2>
       <p>${isAnon()?"You're in as a guest — games you join live here.":"Spot license plates from all 50 states on your road trip."}</p></div>
@@ -542,7 +586,7 @@ async function openGame(id){
    push them up so the members list shows who's who. */
 async function backfillClaimedName(id){
   try{
-    const nm = localStorage.getItem("pc_name_"+id);
+    const nm = localStorage.getItem("pc_name_"+id) || displayName();
     if(!nm || !me()) return;
     const members = await store.listMembers(id);
     const mine = members.find(m=>m.user_id===me().id);
@@ -580,7 +624,7 @@ async function refreshGame(scrollTop){
   $("#app").innerHTML = `
     <div class="topbar">
       <button class="icon-btn" onclick="renderHome()" aria-label="Back">←</button>
-      <h1>${esc(g.title)}</h1>${netDot()}
+      <h1>${esc(g.title)}</h1>${avatarBtn()}
       <button class="icon-btn" onclick="openInvite()" aria-label="Invite players" title="Invite">▦</button>
       ${isOwner(g)?`<button class="icon-btn" onclick="openGameModal('${g.id}')" aria-label="Edit">✎</button>`:""}
     </div>
@@ -607,22 +651,44 @@ function setFilter(f){ app.filter=f; refreshGame(); }
 
 /* ================= WHO ARE YOU (kid name pick) ================= */
 function myName(){ return localStorage.getItem("pc_name_"+app.gameId) || null; }
-function promptWhoAreYou(thenInvite){
+function promptWhoAreYou(thenInvite, force){
   const players = app.game?.players||[];
-  if(!players.length || myName()){ if(thenInvite) openInvite(); return; }
+  if(myName() && !force){ if(thenInvite) openInvite(); return; }
+  const prefill = (!myName() && displayName() && !players.some(p=>p.toLowerCase()===displayName().toLowerCase())) ? displayName() : "";
   $("#modal").innerHTML = `<div class="backdrop"></div>
     <div class="box"><h2>Who are you?</h2>
       <div class="player-row" style="justify-content:center">
         ${players.map(p=>`<button class="pchip" onclick="pickWho('${esc(p).replace(/'/g,"\\'")}',${thenInvite?"true":"false"})">${esc(p)}</button>`).join("")}
       </div>
+      <div class="add-player" style="margin-top:16px">
+        <input id="newWho" placeholder="Not listed? Add your name…" maxlength="20" value="${esc(prefill)}"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addWho(${thenInvite?"true":"false"});}">
+        <button onclick="addWho(${thenInvite?"true":"false"})">Add</button>
+      </div>
       <button class="btn-danger" onclick="closeModal();${thenInvite?"openInvite()":""}">Skip</button></div>`;
   $("#modal").classList.add("show");
 }
+async function addWho(thenInvite){
+  const v = $("#newWho").value.trim();
+  if(!v) return;
+  if((app.game.players||[]).some(p=>p.toLowerCase()===v.toLowerCase())){ pickWho(v, thenInvite); return; }
+  try{
+    await store.addPlayer(app.gameId, v);
+    app.game.players.push(v);
+    await pickWho(v, thenInvite);
+  }catch(e){
+    toast(e.message?.includes("too_many") ? "This game already has 8 players"
+        : "Couldn't add your name — check your connection");
+  }
+}
 async function pickWho(name, thenInvite){
   localStorage.setItem("pc_name_"+app.gameId, name);
+  if(!localStorage.getItem("pc_display_name")) localStorage.setItem("pc_display_name", name);
   try{ await store.claimName(app.gameId, name); }catch(e){ /* offline is fine — name still works locally */ }
   closeModal(); toast(`Hi ${name}! Happy hunting 🚗`);
-  if(thenInvite) openInvite();
+  if(thenInvite){ openInvite(); }
+  else if(app.sheetState){ openSheet(app.sheetState); }
+  else{ refreshGame(); }
 }
 
 /* ================= STATE DETAIL SHEET ================= */
@@ -645,6 +711,7 @@ async function openSheet(stateId){
       <div class="sec-label">Who spotted it?</div>
       <div class="player-row">${players.map(p=>`
         <button class="pchip ${sheetPlayer===p?"on":""}" onclick="pickPlayer(this,'${esc(p).replace(/'/g,"\\'")}')">${esc(p)}</button>`).join("")}
+        <button class="pchip" onclick="promptWhoAreYou(false,true)" title="Add a player">＋</button>
       </div>`:"";
     inner += `<div style="height:18px"></div>
       <button class="btn btn-primary" onclick="markFound('${stateId}')">🎉 &nbsp;Found it!</button>
@@ -891,6 +958,11 @@ async function boot(){
   const {data} = await sb.auth.getSession();
   session = data.session;
   sb.auth.onAuthStateChange((_e, s)=>{ session = s; });
+  /* Google sign-ins arrive with a name — use the first name as the display name */
+  if(session && !localStorage.getItem("pc_display_name")){
+    const gn = session.user?.user_metadata?.name || session.user?.user_metadata?.full_name;
+    if(gn) localStorage.setItem("pc_display_name", gn.split(" ")[0]);
+  }
   window.addEventListener("online", async ()=>{
     const n = await store.flushOutbox();
     if(n) toast(`Back online — ${n} find${n>1?"s":""} synced ✅`);
