@@ -35,6 +35,10 @@
   .avatar:active{transform:scale(.92)}
   .avatar.off{border-color:#F5A623}
   .avatar.big{width:74px;height:74px;font-size:30px;margin:0 auto 14px}
+  .stats-row{display:flex;gap:12px;margin:18px 0 4px}
+  .stat{flex:1;background:var(--surface);border-radius:14px;padding:14px 10px;text-align:center}
+  .stat b{font-size:26px;font-weight:800;display:block;letter-spacing:-.5px}
+  .stat span{font-size:12.5px;color:var(--text-2)}
   .page{padding:20px;flex:1;padding-bottom:calc(40px + var(--safe-b))}
   .hero{margin:6px 0 22px}
   .hero h2{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.2}
@@ -289,6 +293,14 @@ class RemoteStore {
     const {error} = await this.sb.rpc("add_player", {g:gameId, player:name});
     if(error) throw error;
   }
+  async myStats(){
+    const uid = me()?.id;
+    if(!uid || !navigator.onLine) return null;
+    const a = await this.sb.from("finds").select("*", {count:"exact", head:true}).eq("found_by", uid);
+    const b = await this.sb.from("finds").select("*", {count:"exact", head:true}).eq("photo_by", uid);
+    if(a.error || b.error) return null;
+    return {plates: a.count||0, photos: b.count||0};
+  }
 
   /* ---- finds ---- */
   async listFinds(gameId){
@@ -399,7 +411,11 @@ function openProfile(){
     <div class="avatar big">${n?esc(n[0].toUpperCase()):"👤"}</div>
     <h2>Your profile</h2>
     <div class="nick">${acct}</div>
-    <div class="field" style="margin-top:4px"><label>Your name</label>
+    <div class="stats-row">
+      <div class="stat"><b id="stPlates">·</b><span>🚗 plates spotted</span></div>
+      <div class="stat"><b id="stPhotos">·</b><span>📷 photos added</span></div>
+    </div>
+    <div class="field" style="margin-top:14px"><label>Your name</label>
       <input id="profName" maxlength="20" placeholder="e.g. Sawyer" value="${esc(n)}"
         onkeydown="if(event.key==='Enter'){saveProfile();}"></div>
     <button class="btn btn-primary" onclick="saveProfile()">Save</button>
@@ -408,6 +424,12 @@ function openProfile(){
       : "🟠 Offline — finds are saved on this phone and sync when you're back"}</p>
     <button class="btn-danger" onclick="signOut()">Sign out on this device</button>`;
   $("#sheet").classList.add("show"); $("#overlay").classList.add("show");
+  store.myStats().then(s=>{
+    const p = $("#stPlates"), ph = $("#stPhotos");
+    if(!p || !ph) return;
+    p.textContent = s ? s.plates : "—";
+    ph.textContent = s ? s.photos : "—";
+  }).catch(()=>{});
 }
 async function saveProfile(){
   const n = $("#profName").value.trim();
@@ -624,7 +646,7 @@ async function refreshGame(scrollTop){
   $("#app").innerHTML = `
     <div class="topbar">
       <button class="icon-btn" onclick="renderHome()" aria-label="Back">←</button>
-      <h1>${esc(g.title)}</h1>${avatarBtn()}
+      <h1>${esc(g.title)}</h1>
       <button class="icon-btn" onclick="openInvite()" aria-label="Invite players" title="Invite">▦</button>
       ${isOwner(g)?`<button class="icon-btn" onclick="openGameModal('${g.id}')" aria-label="Edit">✎</button>`:""}
     </div>
@@ -791,7 +813,7 @@ function attachPhoto(stateId){
       const blob = await downscale(file, 1200, .82);
       const path = await store.uploadPhoto(app.gameId, stateId, blob);
       const f = app.finds.find(x=>x.state_id===stateId);
-      await store.saveFind({...f, photo_path:path});
+      await store.saveFind({...f, photo_path:path, photo_by: me()?.id||null});
       await refreshGame();
       openSheet(stateId); toast("Photo saved 📷");
     }catch(e){ toast("Upload failed — try again"); console.error(e); }
