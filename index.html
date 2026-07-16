@@ -719,11 +719,26 @@ function sheetTop(){
   return `<button class="sheet-close" onclick="closeSheet()" aria-label="Close">✕</button>
     <div class="grip-zone" onclick="closeSheet()"><div class="grip"></div></div>`;
 }
+async function membersCached(gameId){
+  const c = app._members;
+  if(c && c.gameId===gameId && Date.now()-c.ts < 60000) return c.list;
+  const list = await store.listMembers(gameId);
+  app._members = {gameId, ts:Date.now(), list};
+  return list;
+}
 async function openSheet(stateId){
   const s = STATE_BY_ID[stateId];
   app.sheetState = stateId;
   const f = app.finds.find(x=>x.state_id===stateId);
   sheetPlayer = f?.player ?? myName() ?? sheetPlayer;
+  /* who found it: the tapped player name, else the finder's claimed name */
+  let finderName = f?.player || null;
+  if(f && !finderName && f.found_by){
+    try{
+      const members = await membersCached(app.gameId);
+      finderName = members.find(m=>m.user_id===f.found_by)?.claimed_name || null;
+    }catch(e){ /* offline — show plain "Found" */ }
+  }
   let inner = `${sheetTop()}
     <div class="bigplate">${plateHTML(s)}</div>
     <h2>${esc(s.name)}</h2><div class="nick">${esc(s.nick)} · “${esc(s.slg)}”</div>`;
@@ -741,7 +756,7 @@ async function openSheet(stateId){
   } else {
     const gps = (f.lat!=null) ? `<a href="https://maps.apple.com/?ll=${f.lat},${f.lon}&q=${encodeURIComponent(s.name+" plate spotted")}" target="_blank" rel="noopener">${(+f.lat).toFixed(4)}, ${(+f.lon).toFixed(4)}</a>` : `<span style="color:var(--text-2)">not captured</span>`;
     inner += `<div class="found-box">
-        <div class="row"><div class="ic">✅</div><div><b>Found${f.player?` by ${esc(f.player)}`:""}</b></div></div>
+        <div class="row"><div class="ic">✅</div><div><b>Found${finderName?` by ${esc(finderName)}`:""}</b></div></div>
         <div class="row"><div class="ic">🕐</div><div>${fmtTs(f.ts)}</div></div>
         <div class="row"><div class="ic">📍</div><div>${gps}</div></div>
       </div>
