@@ -532,6 +532,18 @@ async function openGame(id){
   app.view = "game"; app.gameId = id; app.filter = "all"; app.search = "";
   store.subscribeFinds(id, ()=>{ if(app.view==="game" && app.gameId===id) refreshGame(); });
   await refreshGame(true);
+  backfillClaimedName(id);
+}
+/* Names picked before name-sync existed live only on the device —
+   push them up so the members list shows who's who. */
+async function backfillClaimedName(id){
+  try{
+    const nm = localStorage.getItem("pc_name_"+id);
+    if(!nm || !me()) return;
+    const members = await store.listMembers(id);
+    const mine = members.find(m=>m.user_id===me().id);
+    if(mine && !mine.claimed_name) await store.claimName(id, nm);
+  }catch(e){ /* offline is fine — retried next open */ }
 }
 async function refreshGame(scrollTop){
   let g = app.games.find(x=>x.id===app.gameId);
