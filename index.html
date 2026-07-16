@@ -269,7 +269,9 @@ const STATE_BY_ID = Object.fromEntries(STATES.map(s=>[s.id,s]));
 /* Plate image variants (from the Supabase plates table; cached for a day). */
 let PLATE_VARIANTS = {};
 function currentPlateFile(stateId){
-  const v = (PLATE_VARIANTS[stateId]||[]).find(x=>x.is_current);
+  /* prefer the current design; otherwise the newest real image we have */
+  const vars = PLATE_VARIANTS[stateId]||[];
+  const v = vars.find(x=>x.is_current) || vars[0];
   return v ? v.file : null;
 }
 async function loadPlateVariants(){
@@ -453,9 +455,6 @@ function plateCarousel(s){
   const vars = PLATE_VARIANTS[s.id] || [];
   if(!vars.length) return `<div class="bigplate">${plateHTML(s)}</div>`;
   const slides = [];
-  if(!vars.some(v=>v.is_current)){
-    slides.push({html:`<div class="bigplate">${fbPlate(s)}</div>`, label:"Current design"});
-  }
   for(const v of vars){
     slides.push({html:`<div class="bigplate"><img src="${IMG(v.file)}" alt="${esc(s.name)} plate ${esc(v.label||"")}" loading="lazy"></div>`,
       label: v.label || ""});
