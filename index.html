@@ -122,6 +122,13 @@
   .sheet .bigplate .plate-fb .st{font-size:15px}
   .sheet .bigplate .plate-fb .num{font-size:44px;letter-spacing:3px}
   .sheet .bigplate .plate-fb .slg{font-size:12px}
+  .carousel{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:6px -22px 0}
+  .carousel::-webkit-scrollbar{display:none}
+  .car-slide{flex:0 0 100%;scroll-snap-align:center;display:flex;justify-content:center;padding:0 22px}
+  .car-dots{display:flex;justify-content:center;gap:6px;margin:10px 0 2px}
+  .car-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .2s}
+  .car-dot.on{background:var(--text)}
+  .car-label{text-align:center;font-size:12.5px;color:var(--text-2);min-height:17px;margin-bottom:4px}
   .sheet h2{text-align:center;font-size:22px;font-weight:800;letter-spacing:-.3px}
   .sheet .nick{text-align:center;color:var(--text-2);font-size:14px;margin:3px 0 18px}
   .sec-label{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);margin:18px 0 10px}
@@ -259,6 +266,29 @@ const STATES = [
 ];
 const STATE_BY_ID = Object.fromEntries(STATES.map(s=>[s.id,s]));
 
+/* Plate image variants (from the Supabase plates table; cached for a day). */
+let PLATE_VARIANTS = {};
+function currentPlateFile(stateId){
+  const v = (PLATE_VARIANTS[stateId]||[]).find(x=>x.is_current);
+  return v ? v.file : null;
+}
+async function loadPlateVariants(){
+  try{
+    const cached = JSON.parse(localStorage.getItem("pc_plates")||"null");
+    if(cached && Date.now()-cached.ts < 86400000){ buildVariantMap(cached.data); return; }
+  }catch(e){}
+  try{
+    const data = await store.listPlateVariants();
+    localStorage.setItem("pc_plates", JSON.stringify({ts:Date.now(), data}));
+    buildVariantMap(data);
+    if(app.view==="game") refreshGame();
+  }catch(e){ /* offline — hardcoded images still work */ }
+}
+function buildVariantMap(rows){
+  PLATE_VARIANTS = {};
+  for(const r of rows||[]){ (PLATE_VARIANTS[r.state_id] = PLATE_VARIANTS[r.state_id]||[]).push(r); }
+}
+
 /* ================= REMOTE STORE (Supabase) =================
    Same interface shape as v1's LocalStore, backed by Postgres,
    Storage and Realtime. Includes a small offline outbox for finds.
@@ -307,6 +337,11 @@ class RemoteStore {
   async addPlayer(gameId, name){
     const {error} = await this.sb.rpc("add_player", {g:gameId, player:name});
     if(error) throw error;
+  }
+  async listPlateVariants(){
+    const {data,error} = await this.sb.from("plates").select("*").order("state_id").order("sort");
+    if(error) throw error;
+    return data;
   }
   async myStats(){
     const uid = me()?.id;
@@ -402,12 +437,45 @@ function toast(msg){
 function fmtTs(ts){ return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
 function fmtDate(ts){ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});}
 function serial(s){ let n=0; for(const ch of s.name) n=(n*31+ch.charCodeAt(0))%900; return `${s.id}·${String(100+n)}`;}
-function plateHTML(s){
-  const fb = `<div class="plate-fb" style="background:linear-gradient(160deg,${s.c[0]},${s.c[1]});color:${s.fg}">
+function fbPlate(s){
+  return `<div class="plate-fb" style="background:linear-gradient(160deg,${s.c[0]},${s.c[1]});color:${s.fg}">
       <div class="st">${esc(s.name)}</div><div class="num">${serial(s)}</div><div class="slg">${esc(s.slg)}</div></div>`;
-  if(!s.img) return fb;
-  return `<img src="${IMG(s.img)}" alt="${esc(s.name)} license plate" loading="lazy"
+}
+function plateHTML(s){
+  const fb = fbPlate(s);
+  const file = currentPlateFile(s.id) || s.img;
+  if(!file) return fb;
+  return `<img src="${IMG(file)}" alt="${esc(s.name)} license plate" loading="lazy"
       onerror="this.outerHTML=${esc(JSON.stringify(fb)).replace(/"/g,"&quot;")}">`;
+}
+/* carousel of plate variations for the state sheet */
+function plateCarousel(s){
+  const vars = PLATE_VARIANTS[s.id] || [];
+  if(!vars.length) return `<div class="bigplate">${plateHTML(s)}</div>`;
+  const slides = [];
+  if(!vars.some(v=>v.is_current)){
+    slides.push({html:`<div class="bigplate">${fbPlate(s)}</div>`, label:"Current design"});
+  }
+  for(const v of vars){
+    slides.push({html:`<div class="bigplate"><img src="${IMG(v.file)}" alt="${esc(s.name)} plate ${esc(v.label||"")}" loading="lazy"></div>`,
+      label: v.label || ""});
+  }
+  if(slides.length===1) return slides[0].html;
+  const labels = JSON.stringify(slides.map(x=>x.label)).replace(/"/g,"&quot;");
+  return `<div class="carousel" id="plateCar" data-labels="${labels}"
+      onscroll="clearTimeout(window.__carT);window.__carT=setTimeout(carScrolled,80)">
+      ${slides.map(x=>`<div class="car-slide">${x.html}</div>`).join("")}</div>
+    <div class="car-dots" id="carDots">${slides.map((_,i)=>`<div class="car-dot ${i===0?"on":""}"></div>`).join("")}</div>
+    <div class="car-label" id="carLabel">${esc(slides[0].label)}</div>`;
+}
+function carScrolled(){
+  const c = $("#plateCar");
+  if(!c) return;
+  const i = Math.round(c.scrollLeft / c.clientWidth);
+  const labels = JSON.parse(c.dataset.labels||"[]");
+  document.querySelectorAll("#carDots .car-dot").forEach((d,j)=>d.classList.toggle("on", j===i));
+  const l = $("#carLabel");
+  if(l && labels[i]!==undefined) l.textContent = labels[i];
 }
 function logo(){return `<svg width="30" height="30" viewBox="0 0 32 32" fill="none"><rect x="2" y="8" width="28" height="16" rx="4" fill="#FF385C"/><rect x="5" y="11" width="22" height="10" rx="2" fill="#fff"/><text x="16" y="19.5" font-size="8" font-weight="800" text-anchor="middle" fill="#FF385C" font-family="-apple-system,sans-serif">USA</text></svg>`;}
 function displayName(){
@@ -761,7 +829,7 @@ async function openSheet(stateId){
     }catch(e){ /* offline — show plain "Found" */ }
   }
   let inner = `${sheetTop()}
-    <div class="bigplate">${plateHTML(s)}</div>
+    ${plateCarousel(s)}
     <h2>${esc(s.name)}</h2><div class="nick">${esc(s.nick)} · “${esc(s.slg)}”</div>`;
   if(!f){
     const players = app.game.players||[];
@@ -1143,6 +1211,7 @@ async function boot(){
   });
   window.addEventListener("offline", ()=>toast("Offline — finds will sync when you're back"));
   await store.flushOutbox();
+  loadPlateVariants();
   /* parent clicked a magic link after opening a join link — finish the join now */
   const pending = localStorage.getItem("pc_pending_join");
   if(session && pending){
