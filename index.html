@@ -614,7 +614,8 @@ function promptJoinCode(){
 
 /* ================= GAME ================= */
 async function openGame(id){
-  app.view = "game"; app.gameId = id; app.filter = "all"; app.search = "";
+  app.view = "game"; app.gameId = id; app.search = "";
+  app.filter = localStorage.getItem("pc_filter_"+id) || "all";
   store.subscribeFinds(id, ()=>{ if(app.view==="game" && app.gameId===id) refreshGame(); });
   await refreshGame(true);
   backfillClaimedName(id);
@@ -685,7 +686,11 @@ function refreshGameDebounced(){ clearTimeout(_deb); _deb=setTimeout(()=>{
   const inp=$(".search input"); const pos=inp?inp.selectionStart:0;
   refreshGame().then(()=>{ const i=$(".search input"); if(i&&app.search){i.focus();i.setSelectionRange(pos,pos);} });
 },250);}
-function setFilter(f){ app.filter=f; refreshGame(); }
+function setFilter(f){
+  app.filter = f;
+  try{ localStorage.setItem("pc_filter_"+app.gameId, f); }catch(e){}
+  refreshGame();
+}
 
 /* ================= WHO ARE YOU (kid name pick) ================= */
 function myName(){ return localStorage.getItem("pc_name_"+app.gameId) || null; }
