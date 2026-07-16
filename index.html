@@ -35,6 +35,16 @@
   .avatar:active{transform:scale(.92)}
   .avatar.off{border-color:#F5A623}
   .avatar.big{width:74px;height:74px;font-size:30px;margin:0 auto 14px}
+  #mapView{position:fixed;inset:0;z-index:55;background:#fff;display:none;flex-direction:column}
+  #mapView.show{display:flex}
+  #mapCanvas{flex:1}
+  .map-note{position:absolute;bottom:calc(14px + var(--safe-b));left:50%;transform:translateX(-50%);z-index:1000;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(8px);padding:8px 16px;border-radius:99px;
+    font-size:12.5px;color:var(--text-2);box-shadow:0 2px 8px rgba(0,0,0,.15);white-space:nowrap}
+  .map-pin{background:#fff;border:2px solid var(--primary);border-radius:6px;font-weight:800;font-size:11px;
+    color:var(--text);padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap;
+    display:inline-block;transform:translate(-50%,-50%)}
+  .leaflet-popup-content{font-family:inherit;font-size:13.5px;line-height:1.5}
   .stats-row{display:flex;gap:12px;margin:18px 0 4px}
   .stat{flex:1;background:var(--surface);border-radius:14px;padding:14px 10px;text-align:center}
   .stat b{font-size:26px;font-weight:800;display:block;letter-spacing:-.5px}
@@ -174,6 +184,7 @@
 <div class="overlay" id="overlay"></div>
 <div class="sheet" id="sheet"></div>
 <div class="modal" id="modal"></div>
+<div id="mapView"></div>
 <div class="toast" id="toast"></div>
 <input type="file" accept="image/*" id="photoInput" hidden>
 <!-- iOS haptic trick: flipping a switch-style checkbox via its label buzzes (iOS 17.4–26.4) -->
@@ -651,6 +662,7 @@ async function refreshGame(scrollTop){
     <div class="topbar">
       <button class="icon-btn" onclick="renderHome()" aria-label="Back">←</button>
       <h1>${esc(g.title)}</h1>
+      <button class="icon-btn" onclick="openMap()" aria-label="Map of finds" title="Map">🗺️</button>
       <button class="icon-btn" onclick="openInvite()" aria-label="Invite players" title="Invite">▦</button>
       ${isOwner(g)?`<button class="icon-btn" onclick="openGameModal('${g.id}')" aria-label="Edit">✎</button>`:""}
     </div>
@@ -793,7 +805,7 @@ $("#overlay").addEventListener("click",closeSheet);
     startY = null;
   }, {passive:true});
 })();
-document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeSheet(); closeModal(); } });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeSheet(); closeModal(); closeMap(); } });
 
 async function markFound(stateId){
   const find = {game_id:app.gameId, state_id:stateId, player:sheetPlayer||null,
@@ -1000,6 +1012,71 @@ async function openInvite(){
 async function shareInvite(url){
   if(navigator.share){ try{ await navigator.share({title:"Join our Plate Chase game!", url}); }catch(e){} }
   else{ try{ await navigator.clipboard.writeText(url); toast("Link copied!"); }catch(e){ toast(url); } }
+}
+
+/* ================= MAP OF FINDS =================
+   Leaflet + OpenStreetMap (free, no API key). Pins where plates were captured. */
+let mapInstance = null;
+function loadCss(url){
+  if(document.querySelector(`link[href="${url}"]`)) return;
+  const l = document.createElement("link");
+  l.rel = "stylesheet"; l.href = url;
+  document.head.appendChild(l);
+}
+async function openMap(){
+  const mv = $("#mapView");
+  const pts = app.finds.filter(f=>f.lat!=null && f.lon!=null);
+  mv.innerHTML = `
+    <div class="topbar">
+      <button class="icon-btn" onclick="closeMap()" aria-label="Close map">←</button>
+      <h1>Where we spotted</h1>
+    </div>
+    <div id="mapCanvas">${pts.length?"":`<div class="empty" style="padding-top:80px">
+      <div class="big">🗺️</div><b>No pinned finds yet</b><br>
+      Locations attach automatically when a plate is<br>marked found (if location access is allowed).</div>`}
+    </div>
+    ${pts.length?`<div class="map-note">${pts.length} of ${app.finds.length} finds have a location</div>`:""}`;
+  mv.classList.add("show");
+  if(!pts.length) return;
+  try{
+    loadCss("https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css");
+    await loadScript("https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js");
+  }catch(e){
+    $("#mapCanvas").innerHTML = `<div class="empty" style="padding-top:80px"><div class="big">📡</div>
+      <b>The map needs a connection</b><br>Try again when you're back online.</div>`;
+    return;
+  }
+  let members = [];
+  try{ members = await membersCached(app.gameId); }catch(e){}
+  const map = L.map("mapCanvas", {zoomControl:true});
+  mapInstance = map;
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+  const bounds = [];
+  for(const f of pts){
+    const s = STATE_BY_ID[f.state_id];
+    if(!s) continue;
+    bounds.push([f.lat, f.lon]);
+    const m = L.marker([f.lat, f.lon], {icon: L.divIcon({className:"", html:`<div class="map-pin">${s.id}</div>`, iconSize:null})}).addTo(map);
+    m.on("click", async ()=>{
+      const finder = f.player || members.find(x=>x.user_id===f.found_by)?.claimed_name || null;
+      let html = `<b>${esc(s.name)}</b><br>${finder?`Found by ${esc(finder)}<br>`:""}${fmtTs(f.ts)}`;
+      if(f.photo_path){
+        try{
+          const url = await store.photoUrl(f.photo_path);
+          if(url) html += `<br><img src="${url}" style="width:170px;border-radius:8px;margin-top:6px" alt="Find photo">`;
+        }catch(e){}
+      }
+      m.bindPopup(html).openPopup();
+    });
+  }
+  if(bounds.length===1) map.setView(bounds[0], 11);
+  else map.fitBounds(bounds, {padding:[45,45]});
+}
+function closeMap(){
+  if(mapInstance){ try{ mapInstance.remove(); }catch(e){} mapInstance = null; }
+  $("#mapView").classList.remove("show");
+  $("#mapView").innerHTML = "";
 }
 
 /* ================= HAPTICS =================
