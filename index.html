@@ -176,6 +176,10 @@
 <div class="modal" id="modal"></div>
 <div class="toast" id="toast"></div>
 <input type="file" accept="image/*" id="photoInput" hidden>
+<!-- iOS haptic trick: flipping a switch-style checkbox via its label buzzes (iOS 17.4–26.4) -->
+<label id="hapticLabel" aria-hidden="true" tabindex="-1"
+  style="position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden">
+  <input type="checkbox" switch></label>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -798,7 +802,7 @@ async function markFound(stateId){
   app.finds = app.finds.filter(f=>f.state_id!==stateId).concat([find]);
   closeSheet(); confetti();
   const n = app.finds.length;
-  if(n>=50){ bigWin(); } else { toast(`${STATE_BY_ID[stateId].name} found! ${n} of 50 🎉`); }
+  if(n>=50){ hapticWin(); bigWin(); } else { haptic(); toast(`${STATE_BY_ID[stateId].name} found! ${n} of 50 🎉`); }
   try{ await store.saveFind(find); }catch(e){ toast("Couldn't sync — will retry"); }
   await refreshGame();
   if(navigator.geolocation){
@@ -996,6 +1000,20 @@ async function openInvite(){
 async function shareInvite(url){
   if(navigator.share){ try{ await navigator.share({title:"Join our Plate Chase game!", url}); }catch(e){} }
   else{ try{ await navigator.clipboard.writeText(url); toast("Link copied!"); }catch(e){ toast(url); } }
+}
+
+/* ================= HAPTICS =================
+   Android: Vibration API. iOS: switch-toggle trick (silently does nothing
+   where unsupported, e.g. iOS 26.5+ or desktop). */
+function haptic(pattern){
+  try{
+    if(navigator.vibrate){ navigator.vibrate(pattern || 20); return; }
+    $("#hapticLabel")?.click();
+  }catch(e){}
+}
+function hapticWin(){
+  haptic([30,60,30,60,60]);
+  if(!navigator.vibrate){ setTimeout(haptic,120); setTimeout(haptic,280); }
 }
 
 /* ================= CONFETTI & WIN ================= */
